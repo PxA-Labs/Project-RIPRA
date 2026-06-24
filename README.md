@@ -1,6 +1,11 @@
 # Project RIPRA (ऋप्र)
 
+<p align="center">
+  <img src="./visualizations/logo.png" width="300" alt="Project RIPRA Logo"/>
+</p>
+
 Developing and optimizing algorithms for **Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data.
+
 
 ## Description
 Turbulence in the atmosphere distorts a plane-parallel wavefront propagating through it. A Shack-Hartmann Wavefront Sensor (SH-WFS) samples this distorted wavefront using an array of small lenslets (Microlens Array - MLA). The MLA creates a spot-field on the camera detector, and the spatial deviation of these spots from their reference positions is used to derive the reconstructed wavefront and its associated Zernike coefficients. 
