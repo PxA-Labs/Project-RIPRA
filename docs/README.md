@@ -10,3 +10,5 @@ This directory contains detailed technical references, architectural specs, and 
 * [Wavefront Reconstruction](./wavefront_reconstruction.md): Details of the zonal (Fried geometry) and modal reconstruction techniques.
 * [Turbulence Characterization](./turbulence_characterization.md): Theoretical derivations for the Fried parameter ($r_0$) and coherence time ($\tau_0$).
 * [Deformable Mirror Mapping](./dm_mapping.md): Actuator mapping formulations, influence functions, and inter-actuator coupling compensation.
+* [Project Planning](./planning.md): Timeline and checkpoints tracker for Phase 0 to Phase 11.
+* [Research Material](./research-material.md): Bibliography of papers, articles, and references on SH-WFS and Adaptive Optics.
