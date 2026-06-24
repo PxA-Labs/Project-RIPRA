@@ -61,3 +61,14 @@ The dataset to be provided includes:
 * **Accuracy**: Successful reconstruction of wavefront phase maps ($W(x_i, y_i)$) conforming to the turbulence characteristics.
 * **Validation**: Correct estimation of the physical statistical parameters of the turbulence.
 * **Performance**: Speed and computational efficiency of the algorithms (real-time suitability).
+
+---
+
+## Images Representing the Problem Statement
+
+### 1. Example of Wavefront Sensor (WFS) Frame
+![WFS Frame](./visualizations/Example%20of%20wavefront%20sensor%20(WFS)%20frame.webp)
+
+### 2. Spot Deviation on Detector due to Distorted Wavefront
+![Spot Deviation](./visualizations/Schematic%20showing%20spot%20deviation%20on%20detector%20due%20to%20distorted%20wavefront.webp)
+
