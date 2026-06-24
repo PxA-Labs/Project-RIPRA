@@ -7,7 +7,10 @@ Turbulence in the atmosphere distorts a plane-parallel wavefront propagating thr
 
 The conjugate of this reconstructed wavefront is typically used to generate an actuator command map (in units of actuator stroke length) which is then fed to a Deformable Mirror (DM) to correct for this distortion in real-time.
 
+![System Schematic](./visualizations/reference.jpg)
+
 ---
+
 
 ## Objectives
 * **Process SH-WFS frames** collected during turbulence simulated in the laboratory.
