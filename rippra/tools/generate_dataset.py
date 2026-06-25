@@ -287,4 +287,6 @@ def main():
     print(f"  Targets shape: {coefficients.shape}")
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if not (len(sys.argv) > 0 and ('kernel' in sys.argv[0] or '-f' in sys.argv)):
+        main()

@@ -198,4 +198,6 @@ def main():
             print(f"  Sample {i+1}: True={[float(x) for x in targets[i][:5]]} | Pred={[float(x) for x in preds[i][:5]]}")
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if not (len(sys.argv) > 0 and ('kernel' in sys.argv[0] or '-f' in sys.argv)):
+        main()
