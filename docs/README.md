@@ -12,3 +12,4 @@ This directory contains detailed technical references, architectural specs, and 
 * [Deformable Mirror Mapping](./dm_mapping.md): Actuator mapping formulations, influence functions, and inter-actuator coupling compensation.
 * [Project Planning](./planning.md): Timeline and checkpoints tracker for Phase 0 to Phase 11.
 * [Research Material](./research-material.md): Bibliography of papers, articles, and references on SH-WFS and Adaptive Optics.
+* [Problem Statement Alignment](./problem_statement_alignment.md): Compliance matrix mapping implemented C routines against the official requirements.

@@ -1,0 +1,23 @@
+# Compiled files and binaries
+rippra/bin/
+*.o
+*.a
+*.exe
+
+# Large Datasets
+RAW_DATA/
+rippra/data_raw/
+rippra/data_ai/
+
+# ML Checkpoints
+rippra/ml_checkpoints/
+
+# Results & temporary files
+rippra/results/
+scratch/
+__pycache__/
+*.pyc
+
+# Local workspace files
+.VSCodeCounter/
+.vscode/

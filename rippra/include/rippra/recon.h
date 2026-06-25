@@ -1,0 +1,68 @@
+/*
+ * rippra/recon.h - Wavefront Reconstruction, Turbulence Characterization, and DM Mapping
+ */
+#ifndef RIPRA_RECON_H
+#define RIPRA_RECON_H
+
+#include "rippra/io.h"
+#include "rippra/centroid.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Zonal mesh definition (Fried Geometry)
+ */
+typedef struct rippra_zonal_mesh {
+    int nnodes;
+    int *node_u;      /* u-coordinate (column) on the lenslet grid */
+    int *node_v;      /* v-coordinate (row) on the lenslet grid */
+    double *G;        /* Geometry matrix, size (2 * nspots) x nnodes, row-major */
+    double *Gpinv;    /* Pseudo-inverse of G, size nnodes x (2 * nspots), row-major */
+} rippra_zonal_mesh;
+
+/*
+ * Modal reconstruction model definition (Zernike Polynomials)
+ * Active modes exclude piston (Noll index 1).
+ */
+typedef struct rippra_modal_model {
+    int nmodes;       /* Number of active modes (e.g. j = 2 to tot_modes) */
+    int *mode_j;      /* Noll index for each active mode */
+    int *mode_n;      /* Radial order n for each active mode */
+    int *mode_m;      /* Azimuthal order m for each active mode */
+    double *Zprime;   /* Zernike derivative matrix, size (2 * nspots) x nmodes, row-major */
+    double *Zprime_pinv; /* Pseudo-inverse, size nmodes x (2 * nspots), row-major */
+} rippra_modal_model;
+
+/*
+ * Zonal reconstruction setup & execution
+ */
+int rippra_zonal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_zonal_mesh *mesh);
+void rippra_zonal_free(rippra_zonal_mesh *mesh);
+int rippra_zonal_reconstruct(const rippra_zonal_mesh *mesh, const double *dx, const double *dy, const rippa_config *cfg, double *W);
+
+/*
+ * Modal reconstruction setup & execution
+ */
+int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_modal_model *model);
+void rippra_modal_free(rippra_modal_model *model);
+int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, const double *dy, const rippa_config *cfg, double *coeffs);
+
+/*
+ * Turbulence Characterization
+ * dx_series and dy_series are flat contiguous arrays of size nframes * nspots
+ */
+double rippra_compute_r0(const double *dx_series, const double *dy_series, int nframes, int nspots, const rippa_config *cfg);
+double rippra_compute_tau0(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate);
+
+/*
+ * DM Command Map (coupling matrix inversion)
+ * target_phase is of size nnodes. dm_commands is of size nnodes.
+ */
+int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* RIPRA_RECON_H */
