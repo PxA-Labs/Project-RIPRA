@@ -15,12 +15,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /* ---- basic helpers ------------------------------------------------------ */
 
 void rippa_matmul(const double *A, const double *B, double *dst,
                   size_t m, size_t k, size_t n)
 {
     size_t i, j, p;
+#ifdef _OPENMP
+#pragma omp parallel for private(j, p) schedule(static)
+#endif
     for (i = 0; i < m; ++i) {
         for (j = 0; j < n; ++j) {
             double s = 0.0;
@@ -36,6 +43,9 @@ void rippa_matvec(const double *A, const double *x, double *dst,
                   size_t m, size_t n)
 {
     size_t i, j;
+#ifdef _OPENMP
+#pragma omp parallel for private(j) schedule(static)
+#endif
     for (i = 0; i < m; ++i) {
         const double *arow = A + i * n;
         double s = 0.0;

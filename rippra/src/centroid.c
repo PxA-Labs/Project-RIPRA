@@ -23,6 +23,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /* ----------------------------------------------------------------------- */
 /* Connected-components labelling (4-connectivity, two-pass union-find).    */
 /* Returns labelled image (0 = background) and out_num_labels.              */
@@ -329,6 +333,9 @@ int rippa_compute_centroids(const double *frame, int width, int height,
 {
     int k;
     (void)height;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (k = 0; k < cal->nspots; ++k) {
         const rippra_subap *s = &cal->subaps[k];
         double wmin = 1e18, wmax = -1e18, wlevel;

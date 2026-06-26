@@ -9,6 +9,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -307,6 +311,9 @@ int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, r
     double kk = cfg->pupil_radius / (M_PI * cfg->sa_radius * cfg->sa_radius);
     
     /* Integrate Zernike derivatives over each active sub-aperture area */
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (int k = 0; k < nspots; ++k) {
         /* Canonical center of the sub-aperture */
         double x_c = (cal->subaps[k].ref_cx - cal->pupil_cx) * cfg->camera_pixsize / cfg->pupil_radius;
@@ -405,6 +412,9 @@ double rippra_compute_r0(const double *dx_series, const double *dy_series, int n
     
     double total_var = 0.0;
     
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+:total_var) schedule(static)
+#endif
     for (int k = 0; k < nspots; ++k) {
         /* Compute means */
         double sum_x = 0.0, sum_y = 0.0;
@@ -506,6 +516,12 @@ int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mes
     
     for (int i = 0; i < nnodes; ++i) {
         C[i * nnodes + i] = 1.0;
+    }
+    
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (int i = 0; i < nnodes; ++i) {
         int ui = mesh->node_u[i];
         int vi = mesh->node_v[i];
         

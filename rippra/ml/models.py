@@ -90,3 +90,18 @@ class WavefrontCNN(nn.Module):
         out = self.pool(out)
         out = out.view(out.size(0), -1)
         return self.fc(out)
+
+    def forward_export(self, x):
+        """ONNX-compatible forward: replaces adaptive pool with avg pool."""
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.res1(out)
+        out = self.res2(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+        out = self.res3(out)
+        out = torch.nn.functional.avg_pool2d(out, (2, 3), stride=(2, 2))
+        out = out.view(out.size(0), -1)
+        return self.fc(out)
