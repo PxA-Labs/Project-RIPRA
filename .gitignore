@@ -21,3 +21,12 @@ __pycache__/
 # Local workspace files
 .VSCodeCounter/
 .vscode/
+
+# External references (not project code)
+notebook/*.pdf
+visualizations/*.exe
+visualizations/file_*.png
+visualizations/wavefront_animation.gif
+
+# Scratch / working notes
+scratch/

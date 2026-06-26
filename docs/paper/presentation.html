@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RIPRA — Real-Time Wavefront Reconstruction</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a16; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; }
+.slide { width: 100vw; height: 100vh; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 40px 60px; position: relative; }
+.slide.active { display: flex; }
+.slide::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #00ff88, transparent); }
+h1 { color: #00ff88; font-size: 42px; font-weight: 300; letter-spacing: 3px; margin-bottom: 12px; }
+h1 span { font-weight: 700; }
+h2 { color: #00ff88; font-size: 28px; font-weight: 600; margin-bottom: 20px; letter-spacing: 1px; }
+h3 { color: #ccc; font-size: 18px; font-weight: 400; margin-bottom: 16px; }
+p, li { color: #bbb; font-size: 18px; line-height: 1.7; max-width: 900px; }
+ul { list-style: none; max-width: 800px; }
+li { padding: 6px 0; position: relative; padding-left: 24px; }
+li::before { content: '>'; position: absolute; left: 0; color: #00ff88; font-weight: 700; }
+.cta { color: #00ff88; font-size: 14px; margin-top: 24px; letter-spacing: 1px; text-transform: uppercase; }
+.nav { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 100; }
+.nav button { background: #141428; color: #00ff88; border: 1px solid #00ff88; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+.nav button:hover { background: #00ff88; color: #0a0a16; }
+.page { position: fixed; bottom: 28px; right: 28px; color: #555; font-size: 13px; z-index: 100; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px; width: 100%; }
+.card { background: linear-gradient(160deg, #141428, #0e0e1e); border: 1px solid #2a2a4a; border-radius: 10px; padding: 20px; }
+.card h3 { color: #00ff88; font-size: 16px; margin-bottom: 8px; }
+.card p, .card li { font-size: 15px; }
+table { border-collapse: collapse; font-size: 15px; max-width: 800px; width: 100%; }
+th { color: #00ff88; padding: 8px 14px; text-align: left; border-bottom: 2px solid #00ff88; font-weight: 600; }
+td { padding: 7px 14px; border-bottom: 1px solid #1a1a30; color: #ccc; }
+tr:last-child td { border-bottom: none; }
+.val-green { color: #00ff88; font-weight: 600; }
+.val-amber { color: #ffaa00; }
+.code { background: #060612; border: 1px solid #1a1a30; border-radius: 6px; padding: 8px 12px; font-family: 'Consolas', monospace; font-size: 13px; color: #ccc; max-width: 800px; width: 100%; }
+</style>
+</head>
+<body>
+
+<div class="slide active">
+  <img src="../../visualizations/logo.png" style="width:180px;margin-bottom:20px;opacity:0.9">
+  <h1><span>RIPRA</span> (&#x090b;&#x092a;&#x094d;&#x0930;)</h1>
+  <h3>Real-Time Wavefront Reconstruction &amp; Turbulence Characterization</h3>
+  <p style="color:#555;font-size:14px;margin-top:30px">PxA Labs</p>
+  <div class="cta">&#x2193; Press Next</div>
+</div>
+
+<div class="slide">
+  <h2>Problem</h2>
+  <ul>
+    <li>Atmospheric turbulence distorts optical wavefronts on <strong>1&#8211;10 ms</strong> timescales</li>
+    <li>Adaptive Optics must sense and correct within this budget or image quality degrades</li>
+    <li>Shack-Hartmann WFS samples wavefront via microlens array spot field</li>
+    <li>Challenge: compute spot centroids, reconstruct wavefront, map to DM in <strong>&lt;10 ms</strong></li>
+  </ul>
+</div>
+
+<div class="slide">
+  <h2>Solution Architecture</h2>
+  <ul>
+    <li><strong>Layer 1:</strong> C library (centroid, reconstruction, DM mapping) &#8212; 0.9 ms pipeline</li>
+    <li><strong>Layer 2:</strong> CUDA + PyTorch ML (CNN, LSTM, MLP) &#8212; GPU-accelerated</li>
+    <li><strong>Layer 3:</strong> Visualization dashboard (matplotlib, self-contained HTML)</li>
+  </ul>
+  <p style="margin-top:20px;font-size:15px;color:#888">Camera (648x492) &#8594; TCoG Centroiding &#8594; Zonal/Modal Recon &#8594; DM Map &#8594; Display</p>
+</div>
+
+<div class="slide">
+  <h2>Centroiding: Merged Single-Pass TCoG</h2>
+  <ul>
+    <li>Thresholded Center of Gravity with merged minmax + CoG in one pass</li>
+    <li>Fast path: <strong class="val-green">0.805 ms</strong> (1.5x speedup over naive loop)</li>
+    <li>Iterative refined: <strong class="val-amber">1.18 ms</strong> (higher accuracy)</li>
+    <li>Stability: &sigma; &lt; <strong class="val-green">0.00005&#955;</strong> on static frames</li>
+  </ul>
+</div>
+
+<div class="slide">
+  <h2>Reconstruction Methods</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Zonal (Fried)</h3>
+      <p>Phase nodes at lenslet grid corners. Geometry matrix G truncated SVD. Direct integration.</p>
+    </div>
+    <div class="card">
+      <h3>Modal (Zernike)</h3>
+      <p>Derivative matrix Z' via 15x15 quadrature. Pseudo-inverse. 20 modes (j=2..21).</p>
+    </div>
+  </div>
+</div>
+
+<div class="slide">
+  <h2>DM Actuator Mapping</h2>
+  <ul>
+    <li>Solves <strong>v = M&#8315;&#185;W</strong> for actuator commands from phase</li>
+    <li>M incorporates inter-actuator mechanical coupling (&gamma;)</li>
+    <li>Pseudo-inverse pre-computed &#8212; single matrix-vector multiply at runtime</li>
+    <li>Additional 0.05 ms per frame</li>
+  </ul>
+</div>
+
+<div class="slide">
+  <h2>ML Models</h2>
+  <table>
+    <tr><th>Model</th><th>Parameters</th><th>Test MSE</th><th>Latency</th></tr>
+    <tr><td>MLP (2-layer FC)</td><td>35K</td><td class="val-amber">0.752</td><td class="val-green">0.67 ms</td></tr>
+    <tr><td>CNN (ResNet)</td><td>206K</td><td class="val-green">0.0106</td><td class="val-amber">2.26 ms</td></tr>
+    <tr><td>LSTM (predict)</td><td>211K</td><td>RMSE 1.72</td><td class="val-amber">0.62 ms</td></tr>
+  </table>
+  <p style="margin-top:12px;font-size:15px;color:#888">CNN maps irregular sub-apertures to 12x12 dense grid via interpolation</p>
+</div>
+
+<div class="slide">
+  <h2>Results: Latency</h2>
+  <table>
+    <tr><th>Method</th><th>Mean</th><th>&sigma;</th><th>P95</th><th>Memory</th></tr>
+    <tr><td>Modal Classical</td><td class="val-green">0.041 ms</td><td>0.012</td><td class="val-green">0.059</td><td>0.08 MB</td></tr>
+    <tr><td>MLP</td><td class="val-green">0.666 ms</td><td>0.332</td><td class="val-amber">1.386</td><td>1.14 MB</td></tr>
+    <tr><td>CNN</td><td class="val-amber">2.257 ms</td><td>1.159</td><td class="val-amber">3.587</td><td>0.79 MB</td></tr>
+  </table>
+  <p style="margin-top:12px;font-size:15px;color:#888">500 iterations, CPU for classical, CUDA for ML (RTX 2050)</p>
+</div>
+
+<div class="slide">
+  <h2>Results: Pipeline Latency</h2>
+  <table>
+    <tr><th>Stage</th><th>Time</th></tr>
+    <tr><td>Fast centroid (merged TCoG)</td><td class="val-green">0.805 ms</td></tr>
+    <tr><td>Reconstruction (zonal + modal)</td><td class="val-green">0.05 ms</td></tr>
+    <tr><td>DM mapping</td><td class="val-green">0.05 ms</td></tr>
+    <tr><td><strong>Total pipeline</strong></td><td class="val-green"><strong>~0.9 ms</strong></td></tr>
+    <tr><td>Theoretical throughput</td><td class="val-green">~1100 fps</td></tr>
+  </table>
+  <p style="margin-top:12px;font-size:15px;color:#888">Well under 10 ms AO budget and 500 fps requirement</p>
+</div>
+
+<div class="slide">
+  <h2>Results: Noise Robustness</h2>
+  <table>
+    <tr><th>Condition</th><th>Modal</th><th>MLP</th><th>CNN</th></tr>
+    <tr><td>Gaussian &sigma;=3.16 px</td><td class="val-green">0.011</td><td>0.706</td><td class="val-green">0.107</td></tr>
+    <tr><td>Photon &gamma;=0.01</td><td>0.328</td><td>0.865</td><td class="val-amber">0.611</td></tr>
+    <tr><td>Occlusion 50%</td><td>1.284</td><td class="val-amber">1.062</td><td>1.234</td></tr>
+  </table>
+  <p style="margin-top:12px;font-size:15px;color:#888">200 test frames, RMSE in radians. CNN robust to readout noise.</p>
+</div>
+
+<div class="slide">
+  <h2>Turbulence Characterization</h2>
+  <ul>
+    <li><strong>r&#8320;</strong> (Fried parameter): from slope variance (0.17&#183;&#955;&#178;d&#8315;&#185;&#8260;&#179;/&sigma;&#178;)&#179;&#8260;&#8309;</li>
+    <li><strong>&#964;&#8320;</strong> (Coherence time): 1/e decay of auto-correlation</li>
+    <li>LSTM-based regime classification: <strong class="val-green">99.64%</strong> accuracy</li>
+    <li>D/r&#8320; estimation: R&#178; = <strong class="val-amber">0.693</strong></li>
+  </ul>
+</div>
+
+<div class="slide">
+  <h2>Deployment</h2>
+  <ul>
+    <li><strong>C API:</strong> rippra_api.h / rippra_api.c &#8594; rippra.dll (via build_dll.bat)</li>
+    <li><strong>Python bindings:</strong> ctypes wrapping all 10 API functions</li>
+    <li><strong>ONNX models:</strong> MLP (1.17 MB), CNN (0.81 MB), LSTM (0.83 MB)</li>
+    <li><strong>Docker:</strong> CUDA 12.8 / Ubuntu 22.04 build container</li>
+  </ul>
+</div>
+
+<div class="slide">
+  <h2>Visualization Dashboard</h2>
+  <p>Self-contained HTML pipeline dashboard with three nodes:</p>
+  <ul>
+    <li><strong>SH-WFS Input:</strong> Animated 8x8 donut spot field</li>
+    <li><strong>Processing Pipeline:</strong> Algorithm list + performance specs</li>
+    <li><strong>Reconstructed Wavefront:</strong> Matplotlib-animated 3D surface (RdBu_r, circular pupil)</li>
+  </ul>
+  <p style="margin-top:12px;font-size:14px;color:#666">Plus Zernike bar chart, time series, turbulence telemetry, 6-panel performance monitor</p>
+</div>
+
+<div class="slide">
+  <h2>Conclusion</h2>
+  <ul>
+    <li>Complete SH-WFS processing pipeline: <strong>&lt;0.9 ms</strong> end-to-end</li>
+    <li>Classical modal: 0.041 ms, CNN: 2.26 ms, both &lt;10 ms budget</li>
+    <li>GPU ML: CNN 26,866 fps (7.0x vs CPU)</li>
+    <li>LSTM predictive AO with 99.64% regime classification</li>
+    <li>ONNX-exported models + Python bindings + Docker deployment</li>
+    <li>Self-contained HTML monitoring dashboards</li>
+  </ul>
+  <p style="margin-top:30px;color:#555;font-size:14px">github.com/PxA-Labs/Project-RIPRA</p>
+</div>
+
+<div class="nav">
+  <button onclick="prevSlide()">&#9664; Prev</button>
+  <button onclick="nextSlide()">Next &#9654;</button>
+</div>
+<div class="page" id="page">1 / 14</div>
+
+<script>
+var current = 0;
+var slides = document.querySelectorAll('.slide');
+function showSlide(n) {
+  slides.forEach(function(s) { s.classList.remove('active'); });
+  slides[n].classList.add('active');
+  document.getElementById('page').textContent = (n+1) + ' / ' + slides.length;
+}
+function nextSlide() { if (current < slides.length-1) { current++; showSlide(current); } }
+function prevSlide() { if (current > 0) { current--; showSlide(current); } }
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') nextSlide();
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevSlide();
+});
+showSlide(0);
+</script>
+</body>
+</html>

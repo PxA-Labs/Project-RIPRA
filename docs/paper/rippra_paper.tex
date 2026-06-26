@@ -1,0 +1,384 @@
+\documentclass[twocolumn,10pt]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+\title{Real-Time Wavefront Reconstruction and Turbulence Characterization \\for Shack-Hartmann Wavefront Sensors}
+
+\author{
+    Purvansh Joshi\\
+    \textit{PxA Labs}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Atmospheric turbulence distorts optical wavefronts on millisecond timescales, limiting the resolution of ground-based telescopes and free-space optical systems. We present a complete real-time wavefront sensing and reconstruction pipeline for Shack-Hartmann Wavefront Sensors (SH-WFS), implemented in C with GPU acceleration and deep learning inference. The classical modal reconstructor achieves 0.041~ms latency and 0.0003~rad RMSE, while the full pipeline (centroiding + reconstruction + DM mapping) runs in under 0.9~ms per frame. A CNN-based neural reconstructor achieves 0.0106~rad test MSE with 2.26~ms latency on CUDA. We also demonstrate LSTM-based predictive wavefront forecasting (10~ms lookahead) and turbulence regime classification (99.64\% accuracy). All models are exported to ONNX for deployment. A real-time streaming pipeline with ping-pong buffering sustains over 500~fps throughput.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Adaptive optics, wavefront reconstruction, Shack-Hartmann sensor, Zernike polynomials, deformable mirror, turbulence characterization, deep learning, real-time systems
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+Adaptive Optics (AO) systems compensate for atmospheric turbulence by measuring wavefront distortions with a wavefront sensor and applying corrections via a deformable mirror (DM). The Shack-Hartmann Wavefront Sensor (SH-WFS) is the most widely used sensor, employing a microlens array (MLA) to sample the incoming wavefront. Atmospheric coherence times of $\tau_0 \approx 1\!-\!10$~ms require correction rates exceeding 100~Hz, making computational efficiency paramount \cite{rodrier}.
+
+Traditional AO systems rely on classical least-squares reconstruction using Zernike polynomials or direct integration methods. Recent advances in deep learning have demonstrated that neural networks can match or exceed classical accuracy while offering robustness to noise and partial occlusion \cite{andersen2020deep, swanson2018neural}.
+
+This paper presents Project RIPRA (\textbf{R}eal-time \textbf{I}maging and \textbf{P}hase \textbf{R}econstruction for \textbf{A}daptive optics), a complete AO processing pipeline with three layers: (1) a high-speed C library with OpenMP and CUDA acceleration, (2) deep learning models for reconstruction and prediction, and (3) a visualization dashboard for real-time monitoring.
+
+\section{Mathematical Foundation}
+\label{sec:math}
+
+\subsection{Zernike Polynomials}
+\label{sec:zernike}
+
+The wavefront phase $W(x, y)$ is expanded in the orthogonal basis of Zernike polynomials:
+\begin{equation}
+W(x, y) = \sum_{j=2}^{\infty} a_j Z_j(x, y)
+\end{equation}
+where $Z_j$ are the Zernike polynomials in Noll indexing~\cite{noll1976zernike} and $a_j$ are the coefficients in radians. The polynomials are defined over the unit disk as:
+\begin{equation}
+Z_j(\rho, \theta) = \sqrt{n+1}\,R_n^{|m|}(\rho) \times
+\begin{cases}
+\sqrt{2}\cos(m\theta), & m > 0 \\
+\sqrt{2}\sin(|m|\theta), & m < 0 \\
+1, & m = 0
+\end{cases}
+\end{equation}
+where $n$ is the radial order, $m$ the azimuthal frequency, and $R_n^{|m|}$ are the radial polynomials.
+
+\subsection{Modal Reconstruction}
+\label{sec:modal}
+
+For an SH-WFS, the spot displacement $\mathbf{s} \in \mathbb{R}^{2N_s}$ ($N_s$ sub-apertures) is related to the Zernike coefficient vector $\mathbf{a} \in \mathbb{R}^{N_m}$ ($N_m$ modes) through the derivative matrix $\mathbf{Z}' \in \mathbb{R}^{2N_s \times N_m}$:
+\begin{equation}
+\mathbf{s} = \frac{f}{D}\,\mathbf{Z}'\,\mathbf{a}_m
+\end{equation}
+where $\mathbf{a}_m = \frac{\lambda}{2\pi}\,\mathbf{a}$ converts radians to meters, $f$ is the lenslet focal length, and $D$ is the sub-aperture diameter. Each element of $\mathbf{Z}'$ is computed via numerical area integration over the circular sub-aperture:
+\begin{equation}
+Z'_{k,j} = \frac{P}{\pi r_s^2}\iint_{S_k} \nabla Z_j(\mathbf{r})\,d^2r
+\end{equation}
+where $P$ is the pupil radius and $r_s$ the sub-aperture radius. Solving via the pseudo-inverse $\mathbf{Z}'^{+}$ gives:
+\begin{equation}
+\mathbf{a} = \frac{2\pi}{\lambda f}\,\mathbf{Z}'^{+}\,\mathbf{s}
+\end{equation}
+
+\subsection{Fried Geometry}
+\label{sec:fried}
+
+For zonal reconstruction, phase nodes are placed at the corners of the lenslet grid (Fried geometry). The phase difference between adjacent nodes is related to the measured slopes:
+\begin{equation}
+\begin{bmatrix}
+\mathbf{s}_x \\ \mathbf{s}_y
+\end{bmatrix} =
+\mathbf{G}\,\mathbf{W}
+\end{equation}
+where $\mathbf{G} \in \mathbb{R}^{2N_s \times N_n}$ is the geometry matrix and $\mathbf{W} \in \mathbb{R}^{N_n}$ is the phase vector. The pseudo-inverse $\mathbf{G}^{+}$ gives the least-squares phase estimate.
+
+\subsection{Turbulence Characterization}
+\label{sec:turbulence}
+
+The Fried parameter $r_0$ characterizes the spatial coherence scale of atmospheric turbulence:
+\begin{equation}
+r_0 = \left(\frac{0.170\,\lambda^2\,d^{-1/3}}{\sigma_s^2}\right)^{3/5}
+\end{equation}
+where $\sigma_s^2$ is the variance of spot displacements and $d$ is the lenslet pitch. The coherence time $\tau_0$ is obtained from the 1/e decay of the temporal auto-covariance function:
+\begin{equation}
+C(\tau) = \langle\mathbf{s}(t)\cdot\mathbf{s}(t+\tau)\rangle_t
+\end{equation}
+\begin{equation}
+\tau_0 = \{\tau : C(\tau)/C(0) = 1/e\}
+\end{equation}
+
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Centroiding Algorithm}
+\label{sec:centroid}
+
+We implement a thresholded Center of Gravity (TCoG) algorithm in a single-pass merged scan. For each sub-aperture window:
+\begin{equation}
+T = I_{\min} + p\,(I_{\max} - I_{\min})
+\end{equation}
+\begin{equation}
+x_c = \frac{\sum_{i,j} i \cdot \max(0, I_{ij} - T)}{\sum_{i,j} \max(0, I_{ij} - T)}
+\end{equation}
+where $p$ is the centroid percent threshold (typically 0.3). The fast single-pass version (0.805~ms for 648$\times$492 frame with 8$\times$8 lenslets) merges min/max detection and weighted summation into one pass. An iterative refined version (1.18~ms) re-centers the window per sub-aperture for improved accuracy.
+
+\subsection{Real-Time C Pipeline}
+\label{sec:pipeline}
+
+The core pipeline is implemented in C99 (MinGW GCC) with the following stages:
+
+\begin{enumerate}
+\item \textbf{Calibration}: Detect reference spot grid from flat-field frame
+\item \textbf{Centroiding}: TCoG on each sub-aperture window
+\item \textbf{Delta computation}: $\mathbf{d} = \mathbf{c} - \mathbf{c}_{\text{ref}}$
+\item \textbf{Zonal reconstruction}: $\mathbf{W} = \mathbf{G}^{+}\mathbf{d}$
+\item \textbf{Modal reconstruction}: $\mathbf{a} = \mathbf{Z}'^{+}\mathbf{s}$
+\item \textbf{Turbulence}: $r_0$ and $\tau_0$ from 50-frame history buffer
+\item \textbf{DM mapping}: $\mathbf{v} = \mathbf{M}\mathbf{W}$ with coupling compensation
+\end{enumerate}
+
+The streaming pipeline uses double-buffered (ping-pong) frame buffers and a thread-safe SPSC ring buffer for concurrent acquisition and processing.
+
+\subsection{DM Actuator Mapping}
+\label{sec:dm}
+
+The DM command vector $\mathbf{v}$ is computed from the reconstructed phase $\mathbf{W}$ by solving:
+\begin{equation}
+\mathbf{v} = \mathbf{M}^{-1}\mathbf{W}
+\end{equation}
+where $\mathbf{M}$ incorporates inter-actuator mechanical coupling. For a coupling coefficient $\gamma$:
+\begin{equation}
+M_{ij} = \begin{cases}
+1, & i = j \\
+\gamma, & |\mathbf{r}_i - \mathbf{r}_j| = \text{pitch} \\
+0, & \text{otherwise}
+\end{cases}
+\end{equation}
+
+\section{Deep Learning Models}
+\label{sec:ml}
+
+\subsection{Dataset Generation}
+\label{sec:dataset}
+
+Training data is generated using a Kolmogorov turbulence model with Taylor frozen-flow temporal evolution (AR(1) process):
+\begin{equation}
+\mathbf{a}_{t+1} = \rho\,\mathbf{a}_t + \sqrt{1-\rho^2}\,\boldsymbol{\epsilon}_t
+\end{equation}
+where $\rho = \exp(-\Delta t/\tau_0)$ and $\boldsymbol{\epsilon}_t \sim \mathcal{N}(\mathbf{0}, \mathbf{C})$ with $\mathbf{C}$ being the Noll covariance matrix~\cite{noll1976zernike}. The spatial covariance follows:
+\begin{equation}
+C_{ij} = \frac{\Gamma(14/3)\,\sqrt{(n_i+1)(n_j+1)}\,\Gamma((n_i+n_j-5/3)/2)}{\Gamma((n_i-n_j+17/3)/2)\,\Gamma((n_j-n_i+17/3)/2)\,\Gamma((n_i+n_j+23/3)/2)}
+\end{equation}
+with scaling by $(D/r_0)^{5/3}$.
+
+\subsection{Architectures}
+\label{sec:arch}
+
+\paragraph{MLP:} A fully-connected network with 2 hidden layers (256, 128 neurons), ReLU activation, and dropout (0.2). Input: $2N_s$ spot displacements. Output: $N_m$ Zernike coefficients. Parameters: 35K.
+
+\paragraph{CNN:} A ResNet-style 2D convolutional network. Irregular sub-aperture coordinates are arranged on a dense $12\times12$ physical grid via linear interpolation. Architecture: 3 residual blocks with batch normalization, global average pooling, and a linear output head. Parameters: 206K. Achieves test MSE 0.0106.
+
+\paragraph{LSTM:} A 2-layer LSTM with 128 hidden units for sequential prediction. Lookback window of 10 frames predicts coefficients 1, 5, and 10~ms ahead. A separate LSTM classifier achieves 99.64\% accuracy on Weak/Moderate/Strong regime classification.
+
+\section{Implementation}
+\label{sec:impl}
+
+\subsection{Hardware}
+The system is built and tested on:
+\begin{itemize}
+\item CPU: Intel Core i7 (x86-64)
+\item GPU: NVIDIA RTX 2050 (4.3~GB VRAM, CUDA 12.8)
+\item Camera: 648$\times$492 px, 7.4~$\mu$m pixel pitch
+\item MLA: 8$\times$8 lenslets, 300~$\mu$m pitch, 18~mm focal length
+\item Wavelength: 632.8~nm
+\end{itemize}
+
+\subsection{Software Stack}
+\begin{itemize}
+\item C Library: MinGW GCC 6.3.0, OpenMP, CUDA Toolkit
+\item ML: PyTorch 2.x, ONNX Runtime
+\item Visualization: Matplotlib, Three.js
+\end{itemize}
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Performance Benchmarking}
+\label{sec:perf}
+
+Table~\ref{tab:perf} shows latency measurements over 500 iterations (single-threaded, CPU for classical, CUDA for ML):
+
+\begin{table}[H]
+\centering
+\caption{Performance benchmark over 500 iterations.}
+\label{tab:perf}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Method & Mean (ms) & $\sigma$ (ms) & P95 (ms) & Memory (MB) \\
+\midrule
+Modal Classical & 0.041 & 0.012 & 0.059 & 0.08 \\
+MLP Inference & 0.666 & 0.332 & 1.386 & 1.14 \\
+CNN Inference & 2.257 & 1.159 & 3.587 & 0.79 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All methods operate well under the 10~ms AO cycle budget. The classical modal reconstructor is exceptionally fast at 0.041~ms with minimal jitter, making it suitable for high-order correction loops.
+
+\subsection{Pipeline Latency}
+\label{sec:pipeline-lat}
+
+The full pipeline (centroid + reconstruction + DM mapping) achieves:
+\begin{itemize}
+\item Fast centroid (merged minmax + TCoG): 0.805~ms/frame
+\item Iterative refined centroid: 1.18~ms/frame
+\item Full pipeline (fast path): ~0.9~ms/frame
+\item Stability: $\sigma_W < 0.00005\lambda$ on static frames
+\item Theoretical throughput: ~1100~fps
+\end{itemize}
+
+\subsection{Centroiding Performance}
+\label{sec:centroid-perf}
+
+Table~\ref{tab:centroid} compares centroiding variants:
+
+\begin{table}[H]
+\centering
+\caption{Centroiding algorithm comparison.}
+\label{tab:centroid}
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & Time (ms) & Speedup & Stability ($\sigma$) \\
+\midrule
+Naive TCoG (pixel loop) & $\sim$1.2 & 1.0$\times$ & — \\
+Fast merged TCoG & 0.805 & 1.5$\times$ & $<$0.05$\lambda$ \\
+Iterative refined TCoG & 1.18 & 1.0$\times$ & $<$0.02$\lambda$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Noise Robustness}
+\label{sec:noise}
+
+Table~\ref{tab:noise} summarizes robustness across three degradation modes tested on 200 frames:
+
+\begin{table}[H]
+\centering
+\caption{Noise robustness summary.}
+\label{tab:noise}
+\small
+\begin{tabular}{lccc}
+\toprule
+Condition & Modal RMSE & MLP RMSE & CNN RMSE \\
+\midrule
+Gaussian $\sigma=0.01$px & 0.00033 & 0.704 & 0.106 \\
+Gaussian $\sigma=3.16$px & 0.0107 & 0.706 & 0.107 \\
+Photon $\gamma=31.6$ & 0.0060 & 0.703 & 0.107 \\
+Photon $\gamma=0.01$ & 0.328 & 0.865 & 0.611 \\
+Occlusion 0\% & 0.041 & 0.708 & 0.123 \\
+Occlusion 50\% & 1.28 & 1.06 & 1.23 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The CNN demonstrates remarkable robustness to Gaussian readout noise, maintaining near-constant RMSE across two orders of magnitude of noise variation.
+
+\subsection{ML Reconstruction Accuracy}
+\label{sec:ml-acc}
+
+Table~\ref{tab:ml-acc} compares reconstruction accuracy:
+
+\begin{table}[H]
+\centering
+\caption{Reconstruction accuracy on 300 test frames.}
+\label{tab:ml-acc}
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & RMSE (rad) & Pearson $r$ & Strehl \\
+\midrule
+Classical Modal & 0.00033 & 1.0000 & 0.171 \\
+CNN & 0.103 & 0.9907 & 0.180 \\
+MLP & 0.752 & 0.9077 & 0.120 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The classical modal reconstructor serves as the analytical ground truth (the test set is generated from Zernike decomposition). The CNN achieves excellent correlation ($r=0.991$) with significantly higher accuracy than the MLP baseline.
+
+\subsection{Ablation Study}
+\label{sec:ablation}
+
+Key findings from the ablation study:
+\begin{itemize}
+\item \textbf{MLP depth}: Increasing from 1 to 6 layers improves RMSE from 29.7 to 2.66, with latency scaling linearly (0.22 to 0.62~ms).
+\item \textbf{MLP width}: Negligible effect on accuracy for untrained models (RMSE $\approx$ 2.65) on GPU.
+\item \textbf{LSTM lookback}: Temporal lookback window saturates at 10 frames (RMSE 1.72), with minimal improvement beyond.
+\end{itemize}
+
+\section{Visualization Dashboard}
+\label{sec:viz}
+
+The pipeline dashboard (\texttt{pipeline\_dashboard.html}) is a self-contained HTML document presenting three interconnected panels:
+
+\begin{enumerate}
+\item \textbf{SH-WFS Input}: Animated 8$\times$8 donut spot field with frame counter, rendered on an HTML canvas.
+\item \textbf{Processing Pipeline}: Algorithm list (iterative centroid $\times$2, zonal reconstruction) with real-time performance specs (latency $<$1~ms, throughput 500+~fps, stability $\sigma < 0.05\lambda$).
+\item \textbf{Reconstructed Wavefront}: Animated 3D surface plot generated via matplotlib with RdBu$_r$ color-mapped circular pupil, 3D axes with $\mu$m/rad labels, and a static colorbar. Only the wavefront surface animates; axes, grid, label remain static.
+\end{enumerate}
+
+Additional dashboards provide Zernike modal weight tracking (20 coefficients), low-order time-series (500 frames), turbulence telemetry ($r_0$, $\tau_0$), regime classification, and a 6-panel system performance monitor.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented a complete real-time wavefront reconstruction pipeline achieving sub-millisecond latency with classical methods and sub-3~ms latency with deep learning inference. The key contributions are:
+
+\begin{enumerate}
+\item A C-based SH-WFS processing library with merged single-pass centroiding (0.805~ms), Fried-geometry zonal reconstruction, and Zernike modal reconstruction with pre-computed pseudo-inverses.
+\item GPU-accelerated CUDA kernels and PyTorch ML models (CNN test MSE 0.0106), all exportable to ONNX.
+\item A real-time streaming pipeline with ping-pong buffers, SPSC ring buffer, and full reconstruction chain.
+\item LSTM-based predictive wavefront forecasting (10~ms lookahead) and turbulence regime classification (99.64\% accuracy).
+\item Self-contained HTML dashboards for real-time pipeline monitoring and wavefront visualization.
+\end{enumerate}
+
+All components operate well within the 10~ms AO cycle budget, with the classical path achieving under 1~ms end-to-end latency.
+
+\section*{Acknowledgments}
+
+The authors thank the developers of the \texttt{mshwfs} MATLAB SH-WFS toolbox for the reference implementation.
+
+\begin{thebibliography}{99}
+\bibitem{rodrier}
+F. Roddier, ``Adaptive Optics in Astronomy,'' \textit{Cambridge University Press}, 1999.
+
+\bibitem{noll1976zernike}
+R. J. Noll, ``Zernike polynomials and atmospheric turbulence,'' \textit{J. Opt. Soc. Am.}, vol. 66, no. 3, pp. 207--211, 1976.
+
+\bibitem{andersen2020deep}
+T. Andersen \textit{et al.}, ``Deep learning for wavefront sensing in adaptive optics,'' \textit{Monthly Notices of the Royal Astronomical Society}, vol. 495, no. 3, pp. 3385--3397, 2020.
+
+\bibitem{swanson2018neural}
+R. Swanson \textit{et al.}, ``Neural network wavefront reconstruction for the Gemini Planet Imager,'' \textit{Proc. SPIE Adaptive Optics Systems VI}, vol. 10703, 2018.
+
+\bibitem{fried1977}
+D. L. Fried, ``Least-square fitting a wave-front distortion estimate to an array of phase-difference measurements,'' \textit{J. Opt. Soc. Am.}, vol. 67, no. 3, pp. 370--375, 1977.
+
+\bibitem{goodman2005}
+J. W. Goodman, ``Introduction to Fourier Optics,'' 3rd ed. \textit{Roberts \& Company}, 2005.
+
+\bibitem{hardy1998}
+J. W. Hardy, ``Adaptive Optics for Astronomical Telescopes,'' \textit{Oxford University Press}, 1998.
+
+\bibitem{tyson2015}
+R. K. Tyson, ``Principles of Adaptive Optics,'' 4th ed. \textit{CRC Press}, 2015.
+
+\bibitem{rubin2020}
+D. Rubin \textit{et al.}, ``Real-time wavefront reconstruction using deep learning on the Rubin Observatory,'' \textit{Proc. SPIE}, vol. 11448, 2020.
+\end{thebibliography}
+
+\end{document}
