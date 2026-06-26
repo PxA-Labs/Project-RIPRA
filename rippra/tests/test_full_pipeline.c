@@ -154,8 +154,8 @@ int main(void)
             dx_s[i] = dx[i % nspots] * (1.0 + 0.1 * (double)(i / nspots));
             dy_s[i] = dy[i % nspots] * (1.0 + 0.1 * (double)(i / nspots));
         }
-        double r0 = rippra_compute_r0(dx_s, dy_s, nf, nspots, &cfg);
-        double tau0 = rippra_compute_tau0(dx_s, dy_s, nf, nspots, 1000.0);
+        double r0 = rippra_compute_r0_impl(dx_s, dy_s, nf, nspots, &cfg);
+        double tau0 = rippra_compute_tau0_impl(dx_s, dy_s, nf, nspots, 1000.0);
         TEST(isfinite(r0) && r0 > 0.0, "r0 > 0");
         TEST(isfinite(tau0) && tau0 > 0.0, "tau0 > 0");
         double D_r0 = cfg.pupil_radius * 2.0 / r0;
@@ -167,7 +167,7 @@ int main(void)
     if (phase && zmesh.nnodes > 0) {
         int nnodes = zmesh.nnodes;
         dm_cmds = (double*)calloc(nnodes, sizeof(double));
-        ret = rippra_dm_map(phase, nnodes, &zmesh, &cfg, dm_cmds);
+        ret = rippra_dm_map_impl(phase, nnodes, &zmesh, &cfg, dm_cmds);
         TEST(ret == 0, "DM map computation");
         double cmd_max = 0;
         for (i = 0; i < nnodes; i++)
@@ -183,7 +183,7 @@ int main(void)
         double *residual = (double*)malloc(nnodes * sizeof(double));
         
         /* 8a: DM apply — residual = input + C * dm_commands */
-        ret = rippra_dm_apply(dm_cmds, nnodes, &zmesh, &cfg, phase, residual);
+        ret = rippra_dm_apply_impl_impl(dm_cmds, nnodes, &zmesh, &cfg, phase, residual);
         TEST(ret == 0, "DM apply computation");
         
         /* With ideal dm_cmds, residual should be near zero */
@@ -193,12 +193,12 @@ int main(void)
         
         /* 8b: Single step closed-loop with zero initial commands */
         double *cl_step = (double*)calloc(nnodes, sizeof(double));
-        int rms_scaled = rippra_closed_loop_step(phase, nnodes, &zmesh, &cfg, cl_step, 1.0);
+        int rms_scaled = rippra_closed_loop_step_impl(phase, nnodes, &zmesh, &cfg, cl_step, 1.0);
         TEST(rms_scaled >= 0, "Closed-loop step success");
         
         /* With gain=1.0, one step should converge nearly perfectly */
         double *res2 = (double*)malloc(nnodes * sizeof(double));
-        rippra_dm_apply(cl_step, nnodes, &zmesh, &cfg, phase, res2);
+        rippra_dm_apply_impl_impl(cl_step, nnodes, &zmesh, &cfg, phase, res2);
         double res2_max = 0;
         for (i = 0; i < nnodes; i++) if (fabs(res2[i]) > res2_max) res2_max = fabs(res2[i]);
         TEST(res2_max < 1e-6, "Closed-loop step residual near zero (gain=1)");
@@ -207,7 +207,7 @@ int main(void)
         double *cl_run = (double*)calloc(nnodes, sizeof(double));
         int out_iters = 0;
         double out_rms = 0;
-        ret = rippra_closed_loop_run(phase, nnodes, &zmesh, &cfg,
+        ret = rippra_closed_loop_run_impl(phase, nnodes, &zmesh, &cfg,
                                       cl_run, 0.5, 20, 1e-8,
                                       &out_iters, &out_rms);
         TEST(ret == 0, "Closed-loop run converged");
@@ -216,7 +216,7 @@ int main(void)
         
         /* 8d: Verify convergence: residual after run is near zero */
         double *res3 = (double*)malloc(nnodes * sizeof(double));
-        rippra_dm_apply(cl_run, nnodes, &zmesh, &cfg, phase, res3);
+        rippra_dm_apply_impl(cl_run, nnodes, &zmesh, &cfg, phase, res3);
         double res3_max = 0;
         for (i = 0; i < nnodes; i++) if (fabs(res3[i]) > res3_max) res3_max = fabs(res3[i]);
         TEST(res3_max < 1e-6, "Closed-loop run residual near zero");

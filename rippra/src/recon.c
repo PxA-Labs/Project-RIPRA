@@ -404,7 +404,7 @@ int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, 
 
 /* ---- Turbulence Characterization ----------------------------------------- */
 
-double rippra_compute_r0(const double *dx_series, const double *dy_series, int nframes, int nspots, const rippa_config *cfg) {
+double rippra_compute_r0_impl(const double *dx_series, const double *dy_series, int nframes, int nspots, const rippa_config *cfg) {
     double p = cfg->camera_pixsize;
     double f = cfg->flength;
     double d = cfg->pitch;
@@ -451,7 +451,7 @@ double rippra_compute_r0(const double *dx_series, const double *dy_series, int n
     return r0;
 }
 
-double rippra_compute_tau0(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate) {
+double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate) {
     if (nframes < 2) return 0.0;
     
     /* Auto-correlation values at different time lags delta_t */
@@ -507,7 +507,7 @@ double rippra_compute_tau0(const double *dx_series, const double *dy_series, int
 
 /* ---- DM Command Map ------------------------------------------------------ */
 
-int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands) {
+int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands) {
     double coupling = cfg->coupling;
     
     /* Construct coupling matrix C */
@@ -568,11 +568,11 @@ int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mes
 
 /* ---- Closed-Loop DM Control ------------------------------------------------- */
 
-int rippra_dm_apply(const double *dm_commands, int nnodes,
-                     const rippra_zonal_mesh *mesh,
-                     const rippa_config *cfg,
-                     const double *input_phase,
-                     double *output_residual) {
+int rippra_dm_apply_impl(const double *dm_commands, int nnodes,
+                          const rippra_zonal_mesh *mesh,
+                          const rippa_config *cfg,
+                          const double *input_phase,
+                          double *output_residual) {
     /* DM ADDS its shape to the wavefront.
        dm_commands from dm_map() solves C*v = -phase, so the DM shape
        cancels the input phase.
@@ -605,10 +605,10 @@ int rippra_dm_apply(const double *dm_commands, int nnodes,
     return 0;
 }
 
-int rippra_closed_loop_step(const double *measured_phase, int nnodes,
-                             const rippra_zonal_mesh *mesh,
-                             const rippa_config *cfg,
-                             double *dm_commands, double gain) {
+int rippra_closed_loop_step_impl(const double *measured_phase, int nnodes,
+                                  const rippra_zonal_mesh *mesh,
+                                  const rippa_config *cfg,
+                                  double *dm_commands, double gain) {
     /* Single closed-loop iteration:
        1. Compute DM delta: delta_v = gain * dm_map(measured_phase)
           dm_map gives v s.t. C*v = -measured_phase (conjugate)
@@ -621,7 +621,7 @@ int rippra_closed_loop_step(const double *measured_phase, int nnodes,
     if (!delta_v) return -1;
     
     /* delta_v = -C^-1 * measured_phase */
-    int ret = rippra_dm_map(measured_phase, nnodes, mesh, cfg, delta_v);
+    int ret = rippra_dm_map_impl(measured_phase, nnodes, mesh, cfg, delta_v);
     if (ret != 0) {
         free(delta_v);
         return -2;
@@ -639,7 +639,7 @@ int rippra_closed_loop_step(const double *measured_phase, int nnodes,
         free(delta_v);
         return -3;
     }
-    ret = rippra_dm_apply(dm_commands, nnodes, mesh, cfg, measured_phase, residual);
+    ret = rippra_dm_apply_impl(dm_commands, nnodes, mesh, cfg, measured_phase, residual);
     if (ret != 0) {
         free(delta_v);
         free(residual);
@@ -658,12 +658,12 @@ int rippra_closed_loop_step(const double *measured_phase, int nnodes,
     return (int)(rms * 1e6 + 0.5);
 }
 
-int rippra_closed_loop_run(const double *initial_phase, int nnodes,
-                            const rippra_zonal_mesh *mesh,
-                            const rippa_config *cfg,
-                            double *dm_commands, double gain,
-                            int max_iter, double target_rms,
-                            int *out_iters, double *out_residual_rms) {
+int rippra_closed_loop_run_impl(const double *initial_phase, int nnodes,
+                                 const rippra_zonal_mesh *mesh,
+                                 const rippa_config *cfg,
+                                 double *dm_commands, double gain,
+                                 int max_iter, double target_rms,
+                                 int *out_iters, double *out_residual_rms) {
     /* Run closed-loop AO control until convergence.
        Each iteration:
          1. WFS measures current residual = initial_phase + C * dm_commands
@@ -675,7 +675,7 @@ int rippra_closed_loop_run(const double *initial_phase, int nnodes,
         /* Compute current residual (what WFS would measure) */
         double *residual = (double *)malloc(nnodes * sizeof(double));
         if (!residual) return -1;
-        rippra_dm_apply(dm_commands, nnodes, mesh, cfg, initial_phase, residual);
+        rippra_dm_apply_impl(dm_commands, nnodes, mesh, cfg, initial_phase, residual);
         
         /* Compute RMS of residual */
         double sum_sq = 0.0;
@@ -693,7 +693,7 @@ int rippra_closed_loop_run(const double *initial_phase, int nnodes,
         /* Compute DM update from residual */
         double *delta_v = (double *)malloc(nnodes * sizeof(double));
         if (!delta_v) { free(residual); return -2; }
-        int ret = rippra_dm_map(residual, nnodes, mesh, cfg, delta_v);
+        int ret = rippra_dm_map_impl(residual, nnodes, mesh, cfg, delta_v);
         if (ret != 0) { free(residual); free(delta_v); return -3; }
         
         /* Accumulate with gain */

@@ -141,8 +141,8 @@ int main(void) {
         }
     }
     
-    double r0 = rippra_compute_r0(dx_series, dy_series, nframes, cal.nspots, &cfg);
-    double tau0 = rippra_compute_tau0(dx_series, dy_series, nframes, cal.nspots, 1000.0); /* 1000 Hz frame rate */
+    double r0 = rippra_compute_r0_impl(dx_series, dy_series, nframes, cal.nspots, &cfg);
+    double tau0 = rippra_compute_tau0_impl(dx_series, dy_series, nframes, cal.nspots, 1000.0); /* 1000 Hz frame rate */
     
     printf("   Fried parameter (r0):   %.4e m\n", r0);
     printf("   Coherence time (tau0):  %.4f ms\n", tau0 * 1000.0);
@@ -153,7 +153,7 @@ int main(void) {
     /* 5. DM Command Mapping */
     printf("\n5. Deformable Mirror Actuator Mapping...\n");
     double *dm_cmds = (double *)calloc(mesh.nnodes, sizeof(double));
-    rc = rippra_dm_map(W, mesh.nnodes, &mesh, &cfg, dm_cmds);
+    rc = rippra_dm_map_impl(W, mesh.nnodes, &mesh, &cfg, dm_cmds);
     if (rc != 0) {
         printf("ERROR: DM Mapping failed (rc=%d)\n", rc);
     } else {

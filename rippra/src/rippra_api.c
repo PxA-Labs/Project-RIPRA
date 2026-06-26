@@ -1,13 +1,44 @@
 /*
- * src/rippra_api.c - Public C API implementation for RIPPA shared library
+ * src/rippra_api.c - Public C API implementation for RIPPA shared library.
+ *
+ * NOTE: does NOT #include recon.h — rippra_api.h and recon.h declare the
+ * same function names with incompatible types (rippra_api_config vs rippa_config,
+ * void* vs rippra_zonal_mesh*).  The few recon types/functions needed here
+ * are duplicated below so this file compiles cleanly.
  */
 #define BUILD_RIPRA_DLL 1
 #include "rippra/rippra_api.h"
 #include "rippra/io.h"
 #include "rippra/centroid.h"
-#include "rippra/recon.h"
 #include <stdlib.h>
 #include <string.h>
+
+/* ---- recon types duplicated here (see rippra/recon.h) ---- */
+typedef struct {
+    int nnodes;
+    int *node_u, *node_v;
+    double *G, *Gpinv;
+} rippra_zonal_mesh;
+
+typedef struct {
+    int nmodes;
+    int *mode_j, *mode_n, *mode_m;
+    double *Zprime, *Zprime_pinv;
+} rippra_modal_model;
+
+/* ---- recon functions needed internally (suffixed _impl) ---- */
+int rippra_zonal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_zonal_mesh *mesh);
+int rippra_zonal_reconstruct(const rippra_zonal_mesh *mesh, const double *dx, const double *dy, const rippa_config *cfg, double *phase);
+void rippra_zonal_free(rippra_zonal_mesh *mesh);
+int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_modal_model *model);
+int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, const double *dy, const rippa_config *cfg, double *coeffs);
+void rippra_modal_free(rippra_modal_model *model);
+double rippra_compute_r0_impl(const double *dx, const double *dy, int nf, int ns, const rippa_config *cfg);
+double rippra_compute_tau0_impl(const double *dx, const double *dy, int nf, int ns, double fr);
+int rippra_dm_map_impl(const double *phase, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd);
+int rippra_dm_apply_impl(const double *cmd, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, const double *in, double *out);
+int rippra_closed_loop_step_impl(const double *ph, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd, double g);
+int rippra_closed_loop_run_impl(const double *ph, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd, double g, int mi, double tr, int *oi, double *or);
 
 #define RIPRA_VERSION "2.0.0"
 
@@ -113,10 +144,8 @@ RIPRA_API void rippra_calibration_free(void *cal_ptr)
     free(cal);
 }
 
-RIPRA_API int rippra_calibration_nspots(void *cal_ptr)
-{
-    return (int)((api_calibration*)cal_ptr)->base.nspots;
-}
+RIPRA_API int  rippra_calibration_nspots(void *cal_ptr)
+    { return (int)((api_calibration*)cal_ptr)->base.nspots; }
 
 RIPRA_API void rippra_calibration_ref_centroids(void *cal_ptr,
                                                   double *out_cx, double *out_cy)
@@ -212,7 +241,7 @@ RIPRA_API double rippra_compute_r0(const double *dx_series,
 {
     rippa_config internal;
     api_cfg_to_internal(cfg, &internal);
-    return rippra_compute_r0(dx_series, dy_series, nframes, nspots, &internal);
+    return rippra_compute_r0_impl(dx_series, dy_series, nframes, nspots, &internal);
 }
 
 RIPRA_API double rippra_compute_tau0(const double *dx_series,
@@ -220,7 +249,7 @@ RIPRA_API double rippra_compute_tau0(const double *dx_series,
                                       int nframes, int nspots,
                                       double frame_rate)
 {
-    return rippra_compute_tau0(dx_series, dy_series, nframes, nspots, frame_rate);
+    return rippra_compute_tau0_impl(dx_series, dy_series, nframes, nspots, frame_rate);
 }
 
 /* ---- DM Mapping -------------------------------------------------------- */
@@ -236,7 +265,7 @@ RIPRA_API int rippra_dm_map(const double *target_phase, int nnodes,
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_dm_map(target_phase, nnodes, &cal->zmesh, &cal->cfg, out_commands);
+    return rippra_dm_map_impl(target_phase, nnodes, &cal->zmesh, &cal->cfg, out_commands);
 }
 
 /* ---- Closed-Loop AO Control -------------------------------------------- */
@@ -253,7 +282,7 @@ RIPRA_API int rippra_dm_apply(const double *dm_commands, int nnodes,
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_dm_apply(dm_commands, nnodes, &cal->zmesh, &cal->cfg, input_phase, out_residual);
+    return rippra_dm_apply_impl(dm_commands, nnodes, &cal->zmesh, &cal->cfg, input_phase, out_residual);
 }
 
 RIPRA_API int rippra_closed_loop_step(void *cal_ptr,
@@ -270,7 +299,7 @@ RIPRA_API int rippra_closed_loop_step(void *cal_ptr,
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_closed_loop_step(measured_phase, nnodes, &cal->zmesh, &cal->cfg, dm_commands, gain);
+    return rippra_closed_loop_step_impl(measured_phase, nnodes, &cal->zmesh, &cal->cfg, dm_commands, gain);
 }
 
 RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
@@ -291,7 +320,7 @@ RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_closed_loop_run(initial_phase, nnodes, &cal->zmesh, &cal->cfg,
-                                   dm_commands, gain, max_iter, target_rms,
-                                   out_iters, out_residual_rms);
+    return rippra_closed_loop_run_impl(initial_phase, nnodes, &cal->zmesh, &cal->cfg,
+                                        dm_commands, gain, max_iter, target_rms,
+                                        out_iters, out_residual_rms);
 }

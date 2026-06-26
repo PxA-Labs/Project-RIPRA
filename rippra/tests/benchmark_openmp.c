@@ -107,7 +107,7 @@ int main(void) {
     
     t_start = get_time_ms();
     for (int i = 0; i < BENCH_ITERS; ++i) {
-        rippra_compute_r0(dx_series, dy_series, nframes, cal.nspots, &cfg);
+        rippra_compute_r0_impl(dx_series, dy_series, nframes, cal.nspots, &cfg);
         rippra_compute_tau0(dx_series, dy_series, nframes, cal.nspots, 1000.0);
     }
     double t_turbulence = (get_time_ms() - t_start) / BENCH_ITERS;

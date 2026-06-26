@@ -53,45 +53,29 @@ int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, 
  * Turbulence Characterization
  * dx_series and dy_series are flat contiguous arrays of size nframes * nspots
  */
-double rippra_compute_r0(const double *dx_series, const double *dy_series, int nframes, int nspots, const rippa_config *cfg);
-double rippra_compute_tau0(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate);
+double rippra_compute_r0_impl(const double *dx_series, const double *dy_series, int nframes, int nspots, const rippa_config *cfg);
+double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate);
 
 /*
  * DM Command Map (coupling matrix inversion)
  * target_phase is of size nnodes. dm_commands is of size nnodes.
  */
-int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
-
-/*
- * DM apply: compute residual wavefront after DM correction.
- * residual = input_phase + C * dm_commands
- */
-int rippra_dm_apply(const double *dm_commands, int nnodes,
-                     const rippra_zonal_mesh *mesh,
-                     const rippa_config *cfg,
-                     const double *input_phase,
-                     double *output_residual);
-
-/*
- * Closed-loop AO control: single step.
- * Returns residual RMS × 1e6, or negative on error.
- */
-int rippra_closed_loop_step(const double *measured_phase, int nnodes,
-                             const rippra_zonal_mesh *mesh,
-                             const rippa_config *cfg,
-                             double *dm_commands, double gain);
-
-/*
- * Closed-loop AO control: run until convergence.
- * dm_commands is [in/out]. gain in (0,1] for stability.
- * Returns 0=converged, 1=max_iter, negative=error.
- */
-int rippra_closed_loop_run(const double *initial_phase, int nnodes,
-                            const rippra_zonal_mesh *mesh,
-                            const rippa_config *cfg,
-                            double *dm_commands, double gain,
-                            int max_iter, double target_rms,
-                            int *out_iters, double *out_residual_rms);
+int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
+int rippra_dm_apply_impl(const double *dm_commands, int nnodes,
+                          const rippra_zonal_mesh *mesh,
+                          const rippa_config *cfg,
+                          const double *input_phase,
+                          double *output_residual);
+int rippra_closed_loop_step_impl(const double *measured_phase, int nnodes,
+                                  const rippra_zonal_mesh *mesh,
+                                  const rippa_config *cfg,
+                                  double *dm_commands, double gain);
+int rippra_closed_loop_run_impl(const double *initial_phase, int nnodes,
+                                 const rippra_zonal_mesh *mesh,
+                                 const rippa_config *cfg,
+                                 double *dm_commands, double gain,
+                                 int max_iter, double target_rms,
+                                 int *out_iters, double *out_residual_rms);
 
 /*
  * Wavefront quality metrics

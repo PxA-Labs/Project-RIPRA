@@ -325,9 +325,9 @@ int rippra_stream_process(rippra_stream *s)
         if (idx == s->turb_nframes - 1) s->history_filled = 1;
 
         if (s->history_filled) {
-            r->r0 = rippra_compute_r0(s->dx_history, s->dy_history,
+            r->r0 = rippra_compute_r0_impl(s->dx_history, s->dy_history,
                                        s->turb_nframes, nspots, &s->cfg);
-            r->tau0 = rippra_compute_tau0(s->dx_history, s->dy_history,
+            r->tau0 = rippra_compute_tau0_impl(s->dx_history, s->dy_history,
                                            s->turb_nframes, nspots, 1000.0);
         } else {
             r->r0 = 0.0;

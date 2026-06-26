@@ -90,7 +90,7 @@ jobs:
 
       - name: Install Python deps
         run: |
-          pip install --quiet numpy matplotlib scipy onnx onnxruntime
+          pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas
 
       - name: Test ONNX model loading
         run: python ml/test_onnx_models.py
