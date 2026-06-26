@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libomp-dev python3-pip
+          sudo apt-get install -y gcc libomp-dev
 
       - name: Compile C library
         run: |
@@ -29,15 +29,15 @@ jobs:
           gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
           ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
 
-      - name: Build and run integration tests
+      - name: Build tests
         run: |
           gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
-          cd build && ./test_full_pipeline
-
-      - name: Build and run reconstruction tests
-        run: |
           gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
-          cd build && ./test_recon
+
+      - name: Run integration tests (in rippra/, not build/)
+        run: |
+          ./build/test_full_pipeline
+          ./build/test_recon
 
   # ─── Windows (MinGW) build + test ──────────────────────
   windows:
@@ -54,7 +54,7 @@ jobs:
 
       - name: Compile C library
         run: |
-          mkdir -p build
+          if (-not (Test-Path -LiteralPath "build")) { mkdir build }
           gcc -O2 -c src/io.c -o build/io.o -Iinclude
           gcc -O2 -c src/la.c -o build/la.o -Iinclude
           gcc -O2 -c src/centroid.c -o build/centroid.o -Iinclude
@@ -62,14 +62,15 @@ jobs:
           gcc -O2 -c src/rippra_api.c -o build/rippra_api.o -Iinclude
           ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
 
-      - name: Build and run integration tests
+      - name: Build tests
         run: |
+          if (-not (Test-Path -LiteralPath "build")) { mkdir build }
           gcc -O2 tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline.exe
-          build\test_full_pipeline.exe
-
-      - name: Build and run reconstruction tests
-        run: |
           gcc -O2 tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon.exe
+
+      - name: Run integration tests
+        run: |
+          build\test_full_pipeline.exe
           build\test_recon.exe
 
   # ─── Python ML + ONNX tests ───────────────────────────
@@ -89,11 +90,10 @@ jobs:
 
       - name: Install Python deps
         run: |
-          pip install numpy matplotlib scipy onnx onnxruntime
-
-      - name: Run predictive AO simulation
-        run: python ml/predictive_ao.py
+          pip install --quiet numpy matplotlib scipy onnx onnxruntime
 
       - name: Test ONNX model loading
-        run: |
-          python ml/test_onnx_models.py
+        run: python ml/test_onnx_models.py
+
+      - name: Run predictive AO simulation (skips torch if unavailable)
+        run: python ml/predictive_ao.py
