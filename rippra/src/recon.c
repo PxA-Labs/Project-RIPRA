@@ -566,6 +566,149 @@ int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mes
     return 0;
 }
 
+/* ---- Closed-Loop DM Control ------------------------------------------------- */
+
+int rippra_dm_apply(const double *dm_commands, int nnodes,
+                     const rippra_zonal_mesh *mesh,
+                     const rippa_config *cfg,
+                     const double *input_phase,
+                     double *output_residual) {
+    /* DM ADDS its shape to the wavefront.
+       dm_commands from dm_map() solves C*v = -phase, so the DM shape
+       cancels the input phase.
+       output_residual = input_phase + C * dm_commands
+       Since C * dm_map(phase) = -phase, output_residual = 0 at convergence. */
+    double coupling = cfg->coupling;
+    
+    for (int i = 0; i < nnodes; ++i) {
+        double dm_shape = 0.0;
+        int ui = mesh->node_u[i];
+        int vi = mesh->node_v[i];
+        
+        for (int j = 0; j < nnodes; ++j) {
+            if (i == j) {
+                dm_shape += dm_commands[j];
+            } else {
+                int uj = mesh->node_u[j];
+                int vj = mesh->node_v[j];
+                int du = abs(ui - uj);
+                int dv = abs(vi - vj);
+                if ((du == 1 && dv == 0) || (du == 0 && dv == 1)) {
+                    dm_shape += coupling * dm_commands[j];
+                } else if (du == 1 && dv == 1) {
+                    dm_shape += coupling * coupling * dm_commands[j];
+                }
+            }
+        }
+        output_residual[i] = input_phase[i] + dm_shape;
+    }
+    return 0;
+}
+
+int rippra_closed_loop_step(const double *measured_phase, int nnodes,
+                             const rippra_zonal_mesh *mesh,
+                             const rippa_config *cfg,
+                             double *dm_commands, double gain) {
+    /* Single closed-loop iteration:
+       1. Compute DM delta: delta_v = gain * dm_map(measured_phase)
+          dm_map gives v s.t. C*v = -measured_phase (conjugate)
+       2. Accumulate: dm_commands += delta_v
+       3. DM shape = C * dm_commands
+       4. Residual = measured_phase + DM_shape
+       
+       Returns RMS of residual in radians × 1e6. */
+    double *delta_v = (double *)malloc(nnodes * sizeof(double));
+    if (!delta_v) return -1;
+    
+    /* delta_v = -C^-1 * measured_phase */
+    int ret = rippra_dm_map(measured_phase, nnodes, mesh, cfg, delta_v);
+    if (ret != 0) {
+        free(delta_v);
+        return -2;
+    }
+    
+    /* Accumulate commands with gain */
+    for (int i = 0; i < nnodes; ++i) {
+        dm_commands[i] += gain * delta_v[i];
+    }
+    
+    /* Compute residual: residual = measured_phase + C * dm_commands
+       At convergence, C*dm_commands ≈ -measured_phase, so residual ≈ 0. */
+    double *residual = (double *)malloc(nnodes * sizeof(double));
+    if (!residual) {
+        free(delta_v);
+        return -3;
+    }
+    ret = rippra_dm_apply(dm_commands, nnodes, mesh, cfg, measured_phase, residual);
+    if (ret != 0) {
+        free(delta_v);
+        free(residual);
+        return -4;
+    }
+    
+    double sum_sq = 0.0;
+    for (int i = 0; i < nnodes; ++i) {
+        sum_sq += residual[i] * residual[i];
+    }
+    
+    free(residual);
+    free(delta_v);
+    
+    double rms = sqrt(sum_sq / nnodes);
+    return (int)(rms * 1e6 + 0.5);
+}
+
+int rippra_closed_loop_run(const double *initial_phase, int nnodes,
+                            const rippra_zonal_mesh *mesh,
+                            const rippa_config *cfg,
+                            double *dm_commands, double gain,
+                            int max_iter, double target_rms,
+                            int *out_iters, double *out_residual_rms) {
+    /* Run closed-loop AO control until convergence.
+       Each iteration:
+         1. WFS measures current residual = initial_phase + C * dm_commands
+         2. Controller: delta_v = -gain * C^-1 * residual
+         3. dm_commands += delta_v
+       dm_commands is [in/out]. Returns 0=converged, 1=max_iter, negative=error. */
+    
+    for (int iter = 0; iter < max_iter; ++iter) {
+        /* Compute current residual (what WFS would measure) */
+        double *residual = (double *)malloc(nnodes * sizeof(double));
+        if (!residual) return -1;
+        rippra_dm_apply(dm_commands, nnodes, mesh, cfg, initial_phase, residual);
+        
+        /* Compute RMS of residual */
+        double sum_sq = 0.0;
+        for (int i = 0; i < nnodes; ++i) sum_sq += residual[i] * residual[i];
+        double rms = sqrt(sum_sq / nnodes);
+        
+        if (out_residual_rms) *out_residual_rms = rms;
+        
+        if (rms <= target_rms) {
+            free(residual);
+            if (out_iters) *out_iters = iter;
+            return 0;
+        }
+        
+        /* Compute DM update from residual */
+        double *delta_v = (double *)malloc(nnodes * sizeof(double));
+        if (!delta_v) { free(residual); return -2; }
+        int ret = rippra_dm_map(residual, nnodes, mesh, cfg, delta_v);
+        if (ret != 0) { free(residual); free(delta_v); return -3; }
+        
+        /* Accumulate with gain */
+        for (int i = 0; i < nnodes; ++i) {
+            dm_commands[i] += gain * delta_v[i];
+        }
+        
+        free(residual);
+        free(delta_v);
+    }
+    
+    if (out_iters) *out_iters = max_iter;
+    return 1; /* max_iter reached without convergence */
+}
+
 double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_config *cfg)
 {
     double sum_sq = 0.0;

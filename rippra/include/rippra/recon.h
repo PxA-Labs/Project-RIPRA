@@ -63,6 +63,37 @@ double rippra_compute_tau0(const double *dx_series, const double *dy_series, int
 int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
 
 /*
+ * DM apply: compute residual wavefront after DM correction.
+ * residual = input_phase + C * dm_commands
+ */
+int rippra_dm_apply(const double *dm_commands, int nnodes,
+                     const rippra_zonal_mesh *mesh,
+                     const rippa_config *cfg,
+                     const double *input_phase,
+                     double *output_residual);
+
+/*
+ * Closed-loop AO control: single step.
+ * Returns residual RMS × 1e6, or negative on error.
+ */
+int rippra_closed_loop_step(const double *measured_phase, int nnodes,
+                             const rippra_zonal_mesh *mesh,
+                             const rippa_config *cfg,
+                             double *dm_commands, double gain);
+
+/*
+ * Closed-loop AO control: run until convergence.
+ * dm_commands is [in/out]. gain in (0,1] for stability.
+ * Returns 0=converged, 1=max_iter, negative=error.
+ */
+int rippra_closed_loop_run(const double *initial_phase, int nnodes,
+                            const rippra_zonal_mesh *mesh,
+                            const rippa_config *cfg,
+                            double *dm_commands, double gain,
+                            int max_iter, double target_rms,
+                            int *out_iters, double *out_residual_rms);
+
+/*
  * Wavefront quality metrics
  * Returns wavefront RMS in units of wavelength (dimensionless).
  * sigma < 0.05 lambda is the typical Marechal criterion for diffraction-limited.

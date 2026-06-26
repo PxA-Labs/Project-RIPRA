@@ -24,7 +24,7 @@ C test programs for all pipeline stages.
 build_test_pipeline.bat
 run_test_pipeline.bat
 ```
-Tests: config load, frame load, calibration, centroid (fast + refined), deltas, zonal recon, modal recon, turbulence (r₀ + τ₀), DM map.
+Tests: config load, frame load, calibration, centroid (fast + refined), deltas, zonal recon, modal recon, turbulence (r₀ + τ₀), DM map, DM apply, closed-loop step, closed-loop run (convergence test).
 
 ### Reconstruction (14 tests)
 ```bash

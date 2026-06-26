@@ -115,6 +115,32 @@ RIPRA_API int rippra_dm_map(const double *target_phase,
                               const rippra_api_config *cfg,
                               double *out_commands);
 
+/* ---- Closed-Loop AO Control -------------------------------------------- */
+RIPRA_API int rippra_dm_apply(const double *dm_commands,
+                                int nnodes,
+                                void *cal,
+                                const rippra_api_config *cfg,
+                                const double *input_phase,
+                                double *out_residual);
+
+RIPRA_API int rippra_closed_loop_step(void *cal,
+                                       const double *measured_phase,
+                                       int nnodes,
+                                       const rippra_api_config *cfg,
+                                       double *dm_commands,
+                                       double gain);
+
+RIPRA_API int rippra_closed_loop_run(void *cal,
+                                      const double *initial_phase,
+                                      int nnodes,
+                                      const rippra_api_config *cfg,
+                                      double *dm_commands,
+                                      double gain,
+                                      int max_iter,
+                                      double target_rms,
+                                      int *out_iters,
+                                      double *out_residual_rms);
+
 #ifdef __cplusplus
 }
 #endif

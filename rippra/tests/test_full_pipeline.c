@@ -176,6 +176,58 @@ int main(void)
         printf("  Max |DM cmd| = %.6f\n", cmd_max);
     }
 
+    /* ---- Step 8: Closed-Loop DM Control ---- */
+    if (phase && zmesh.nnodes > 0) {
+        int nnodes = zmesh.nnodes;
+        double *cl_dm = (double*)calloc(nnodes, sizeof(double));
+        double *residual = (double*)malloc(nnodes * sizeof(double));
+        
+        /* 8a: DM apply — residual = input + C * dm_commands */
+        ret = rippra_dm_apply(dm_cmds, nnodes, &zmesh, &cfg, phase, residual);
+        TEST(ret == 0, "DM apply computation");
+        
+        /* With ideal dm_cmds, residual should be near zero */
+        double res_max = 0;
+        for (i = 0; i < nnodes; i++) if (fabs(residual[i]) > res_max) res_max = fabs(residual[i]);
+        TEST(res_max < 1e-6, "DM correction residual near zero (ideal)");
+        
+        /* 8b: Single step closed-loop with zero initial commands */
+        double *cl_step = (double*)calloc(nnodes, sizeof(double));
+        int rms_scaled = rippra_closed_loop_step(phase, nnodes, &zmesh, &cfg, cl_step, 1.0);
+        TEST(rms_scaled >= 0, "Closed-loop step success");
+        
+        /* With gain=1.0, one step should converge nearly perfectly */
+        double *res2 = (double*)malloc(nnodes * sizeof(double));
+        rippra_dm_apply(cl_step, nnodes, &zmesh, &cfg, phase, res2);
+        double res2_max = 0;
+        for (i = 0; i < nnodes; i++) if (fabs(res2[i]) > res2_max) res2_max = fabs(res2[i]);
+        TEST(res2_max < 1e-6, "Closed-loop step residual near zero (gain=1)");
+        
+        /* 8c: Closed-loop run with gain=0.5 (under-relaxed) */
+        double *cl_run = (double*)calloc(nnodes, sizeof(double));
+        int out_iters = 0;
+        double out_rms = 0;
+        ret = rippra_closed_loop_run(phase, nnodes, &zmesh, &cfg,
+                                      cl_run, 0.5, 20, 1e-8,
+                                      &out_iters, &out_rms);
+        TEST(ret == 0, "Closed-loop run converged");
+        TEST(out_iters > 1, "Closed-loop took >1 iteration (under-relaxed)");
+        TEST(out_rms < 1e-8, "Closed-loop final RMS below target");
+        
+        /* 8d: Verify convergence: residual after run is near zero */
+        double *res3 = (double*)malloc(nnodes * sizeof(double));
+        rippra_dm_apply(cl_run, nnodes, &zmesh, &cfg, phase, res3);
+        double res3_max = 0;
+        for (i = 0; i < nnodes; i++) if (fabs(res3[i]) > res3_max) res3_max = fabs(res3[i]);
+        TEST(res3_max < 1e-6, "Closed-loop run residual near zero");
+        
+        printf("  Closed-loop: %d iterations, final RMS = %.2e rad (gain=0.5)\n", out_iters, out_rms);
+        printf("  Max residual after run: %.2e rad\n", res3_max);
+        
+        free(cl_dm); free(cl_step); free(cl_run);
+        free(residual); free(res2); free(res3);
+    }
+
     /* ---- Summary ---- */
     printf("\n=== Results: %d / %d tests passed ===\n", pass_count, test_count);
 

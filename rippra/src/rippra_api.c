@@ -238,3 +238,60 @@ RIPRA_API int rippra_dm_map(const double *target_phase, int nnodes,
     }
     return rippra_dm_map(target_phase, nnodes, &cal->zmesh, &cal->cfg, out_commands);
 }
+
+/* ---- Closed-Loop AO Control -------------------------------------------- */
+RIPRA_API int rippra_dm_apply(const double *dm_commands, int nnodes,
+                               void *cal_ptr,
+                               const rippra_api_config *cfg,
+                               const double *input_phase,
+                               double *out_residual)
+{
+    api_calibration *cal = (api_calibration*)cal_ptr;
+    (void)cfg;
+    if (!cal->zmesh_ready) {
+        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
+        if (ret != 0) return ret;
+        cal->zmesh_ready = 1;
+    }
+    return rippra_dm_apply(dm_commands, nnodes, &cal->zmesh, &cal->cfg, input_phase, out_residual);
+}
+
+RIPRA_API int rippra_closed_loop_step(void *cal_ptr,
+                                       const double *measured_phase,
+                                       int nnodes,
+                                       const rippra_api_config *cfg,
+                                       double *dm_commands,
+                                       double gain)
+{
+    api_calibration *cal = (api_calibration*)cal_ptr;
+    (void)cfg;
+    if (!cal->zmesh_ready) {
+        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
+        if (ret != 0) return ret;
+        cal->zmesh_ready = 1;
+    }
+    return rippra_closed_loop_step(measured_phase, nnodes, &cal->zmesh, &cal->cfg, dm_commands, gain);
+}
+
+RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
+                                      const double *initial_phase,
+                                      int nnodes,
+                                      const rippra_api_config *cfg,
+                                      double *dm_commands,
+                                      double gain,
+                                      int max_iter,
+                                      double target_rms,
+                                      int *out_iters,
+                                      double *out_residual_rms)
+{
+    api_calibration *cal = (api_calibration*)cal_ptr;
+    (void)cfg;
+    if (!cal->zmesh_ready) {
+        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
+        if (ret != 0) return ret;
+        cal->zmesh_ready = 1;
+    }
+    return rippra_closed_loop_run(initial_phase, nnodes, &cal->zmesh, &cal->cfg,
+                                   dm_commands, gain, max_iter, target_rms,
+                                   out_iters, out_residual_rms);
+}
