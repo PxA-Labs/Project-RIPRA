@@ -62,6 +62,13 @@ double rippra_compute_tau0(const double *dx_series, const double *dy_series, int
  */
 int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
 
+/*
+ * Wavefront quality metrics
+ * Returns wavefront RMS in units of wavelength (dimensionless).
+ * sigma < 0.05 lambda is the typical Marechal criterion for diffraction-limited.
+ */
+double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_config *cfg);
+
 #ifdef __cplusplus
 }
 #endif

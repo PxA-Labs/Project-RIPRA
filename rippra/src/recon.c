@@ -565,3 +565,12 @@ int rippra_dm_map(const double *target_phase, int nnodes, const rippra_zonal_mes
     free(rhs);
     return 0;
 }
+
+double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_config *cfg)
+{
+    double sum_sq = 0.0;
+    for (int i = 0; i < nnodes; ++i)
+        sum_sq += phase[i] * phase[i];
+    double rms_m = sqrt(sum_sq / nnodes);
+    return rms_m / cfg->wavelength;
+}

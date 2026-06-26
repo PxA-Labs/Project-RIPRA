@@ -88,6 +88,18 @@ void rippa_compute_deltas(const double *cx, const double *cy,
                           const rippra_calibration *cal,
                           int nspots, double *dx, double *dy);
 
+/*
+ * Refined (iterative) centroiding: two-pass TCoG.
+ * First pass: standard centroid in reference window.
+ * Second pass: re-center window around first-pass centroid, re-run TCoG.
+ * Returns final centroids in cx_out, cy_out and deltas in dx, dy.
+ */
+int rippa_compute_centroids_refined(const double *frame, int width, int height,
+                                     const rippra_calibration *cal,
+                                     const rippa_config *cfg,
+                                     double *cx_out, double *cy_out,
+                                     double *dx, double *dy);
+
 #ifdef __cplusplus
 }
 #endif

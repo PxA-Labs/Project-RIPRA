@@ -2,16 +2,15 @@
  * rippa/centroid.c - sub-aperture grid calibration + thresholded CoG
  *
  * Mirrors the MATLAB calibration logic (shwfs_make_coarse_grid.m +
- * shwfs_make_fine_grid.m + centroid.m + shwfs_get_centres.m) but with two
- * optimizations for the per-frame path:
+ * shwfs_make_fine_grid.m + centroid.m + shwfs_get_centres.m) with an
+ * optimization for the per-frame path:
  *
  *   1. Connected-components spot detection uses a two-pass union-find label
  *      (no image-processing toolbox needed).
- *   2. Thresholded CoG uses integral images (summed-area tables) over the
- *      window-pixel / window-pixel*col / window-pixel*row products, so each
- *      CoG takes O(window) work to threshold-mask but the sums are O(1).
- *      (The threshold step still requires scanning pixels, but no division
- *      per pixel — see note in rippa_compute_centroids.)
+ *
+ * Per-frame TCoG uses direct window scanning, which is optimal for typical
+ * SH-WFS window sizes (5-7 px): O(window) per sub-aperture totals ~3k
+ * pixels vs O(width*height) ~300k for a summed-area table precomputation.
  *
  * Coordinate convention: origin top-left, col (x) right, row (y) down.
  * This matches MATLAB's plot() coordinate system after imshow().
@@ -178,6 +177,23 @@ static int detect_spots(const double *frame, int w, int h, double threshold,
 /* Mirrors MATLAB centroid.m: pixel < level set to 0, then weighted mean.   */
 /* Returns centroid in window-local coords (0-based); sets *mass.           */
 /* ----------------------------------------------------------------------- */
+static void window_minmax(const double *frame, int w,
+                          int col_min, int col_max, int row_min, int row_max,
+                          double *out_min, double *out_max)
+{
+    double mn = 1e18, mx = -1e18;
+    for (int j = row_min; j <= row_max; ++j) {
+        const double *row = frame + (size_t)j * w;
+        for (int i = col_min; i <= col_max; ++i) {
+            double v = row[i];
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+        }
+    }
+    *out_min = mn;
+    *out_max = mx;
+}
+
 static void tcog_window(const double *frame, int w,
                         int col_min, int col_max, int row_min, int row_max,
                         double level,
@@ -199,7 +215,43 @@ static void tcog_window(const double *frame, int w,
         *out_cx = sx / m;
         *out_cy = sy / m;
     } else {
-        /* fall back to window centre */
+        *out_cx = 0.5 * (col_min + col_max);
+        *out_cy = 0.5 * (row_min + row_max);
+    }
+    *out_mass = m;
+}
+
+/* Combined pass: compute min/max AND run TCoG in a single window scan */
+static void tcog_window_fast(const double *frame, int w,
+                             int col_min, int col_max, int row_min, int row_max,
+                             double centroid_percent,
+                             double *out_cx, double *out_cy, double *out_mass)
+{
+    double sx = 0.0, sy = 0.0, m = 0.0;
+    double mn = 1e18, mx = -1e18;
+    for (int j = row_min; j <= row_max; ++j) {
+        const double *row = frame + (size_t)j * w;
+        for (int i = col_min; i <= col_max; ++i) {
+            double v = row[i];
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+        }
+    }
+    double level = mn + centroid_percent * (mx - mn);
+    for (int j = row_min; j <= row_max; ++j) {
+        const double *row = frame + (size_t)j * w;
+        for (int i = col_min; i <= col_max; ++i) {
+            double v = row[i];
+            if (v < level) continue;
+            sx += (double)i * v;
+            sy += (double)j * v;
+            m += v;
+        }
+    }
+    if (m > 0.0) {
+        *out_cx = sx / m;
+        *out_cy = sy / m;
+    } else {
         *out_cx = 0.5 * (col_min + col_max);
         *out_cy = 0.5 * (row_min + row_max);
     }
@@ -287,14 +339,9 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
 
         /* precise reference centroid via TCoG inside this window */
         {
-            double wmin = 1e18, wmax = -1e18, wlevel;
-            int a, b;
-            for (b = s->row_min; b <= s->row_max; ++b)
-                for (a = s->col_min; a <= s->col_max; ++a) {
-                    double v = frame[(size_t)b * width + a];
-                    if (v < wmin) wmin = v;
-                    if (v > wmax) wmax = v;
-                }
+            double wmin, wmax, wlevel;
+            window_minmax(frame, width, s->col_min, s->col_max,
+                          s->row_min, s->row_max, &wmin, &wmax);
             wlevel = wmin + cfg->centroid_percent * (wmax - wmin);
             tcog_window(frame, width, s->col_min, s->col_max,
                         s->row_min, s->row_max, wlevel,
@@ -338,19 +385,9 @@ int rippa_compute_centroids(const double *frame, int width, int height,
 #endif
     for (k = 0; k < cal->nspots; ++k) {
         const rippra_subap *s = &cal->subaps[k];
-        double wmin = 1e18, wmax = -1e18, wlevel;
-        int a, b;
-        /* window min/max for relative threshold */
-        for (b = s->row_min; b <= s->row_max; ++b)
-            for (a = s->col_min; a <= s->col_max; ++a) {
-                double v = frame[(size_t)b * width + a];
-                if (v < wmin) wmin = v;
-                if (v > wmax) wmax = v;
-            }
-        wlevel = wmin + cfg->centroid_percent * (wmax - wmin);
-        tcog_window(frame, width, s->col_min, s->col_max,
-                    s->row_min, s->row_max, wlevel,
-                    &cx[k], &cy[k], &(double){0.0});
+        tcog_window_fast(frame, width, s->col_min, s->col_max,
+                         s->row_min, s->row_max, cfg->centroid_percent,
+                         &cx[k], &cy[k], &(double){0.0});
     }
     return 0;
 }
@@ -365,4 +402,52 @@ void rippa_compute_deltas(const double *cx, const double *cy,
         dx[i] = cx[i] - cal->subaps[i].ref_cx;
         dy[i] = cy[i] - cal->subaps[i].ref_cy;
     }
+}
+
+int rippa_compute_centroids_refined(const double *frame, int width, int height,
+                                     const rippra_calibration *cal,
+                                     const rippa_config *cfg,
+                                     double *cx_out, double *cy_out,
+                                     double *dx, double *dy)
+{
+    int k, ret;
+    int nspots = cal->nspots;
+    int r = (int)(0.5 * cal->pitch_px / sqrt(2.0));
+    if (r < 2) r = 2;
+
+    /* First pass */
+    ret = rippa_compute_centroids(frame, width, height, cal, cfg, cx_out, cy_out);
+    if (ret != 0) return ret;
+
+    /* Second pass: refine window around first-pass centroid */
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+    for (k = 0; k < nspots; ++k) {
+        int cx_i = (int)round(cx_out[k]);
+        int cy_i = (int)round(cy_out[k]);
+        int cmin = cx_i - r;
+        int cmax = cx_i + r;
+        int rmin = cy_i - r;
+        int rmax = cy_i + r;
+        if (cmin < 0) cmin = 0;
+        if (rmin < 0) rmin = 0;
+        if (cmax >= width)  cmax = width - 1;
+        if (rmax >= height) rmax = height - 1;
+
+        double wmin = 1e18, wmax = -1e18, wlevel;
+        int a, b;
+        for (b = rmin; b <= rmax; ++b)
+            for (a = cmin; a <= cmax; ++a) {
+                double v = frame[(size_t)b * width + a];
+                if (v < wmin) wmin = v;
+                if (v > wmax) wmax = v;
+            }
+        wlevel = wmin + cfg->centroid_percent * (wmax - wmin);
+        tcog_window(frame, width, cmin, cmax, rmin, rmax, wlevel,
+                    &cx_out[k], &cy_out[k], &(double){0.0});
+    }
+
+    rippa_compute_deltas(cx_out, cy_out, cal, nspots, dx, dy);
+    return 0;
 }
