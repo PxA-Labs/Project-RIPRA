@@ -1,0 +1,99 @@
+name: CI
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+
+  # ─── Linux build + test ─────────────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rippra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libomp-dev python3-pip
+
+      - name: Compile C library
+        run: |
+          mkdir -p build
+          gcc -O2 -fopenmp -c src/io.c -o build/io.o -Iinclude
+          gcc -O2 -fopenmp -c src/la.c -o build/la.o -Iinclude
+          gcc -O2 -fopenmp -c src/centroid.c -o build/centroid.o -Iinclude
+          gcc -O2 -fopenmp -c src/recon.c -o build/recon.o -Iinclude
+          gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
+          ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+
+      - name: Build and run integration tests
+        run: |
+          gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
+          cd build && ./test_full_pipeline
+
+      - name: Build and run reconstruction tests
+        run: |
+          gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
+          cd build && ./test_recon
+
+  # ─── Windows (MinGW) build + test ──────────────────────
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rippra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW
+        run: choco install mingw --version=13.2.0 -y --no-progress
+
+      - name: Compile C library
+        run: |
+          mkdir -p build
+          gcc -O2 -c src/io.c -o build/io.o -Iinclude
+          gcc -O2 -c src/la.c -o build/la.o -Iinclude
+          gcc -O2 -c src/centroid.c -o build/centroid.o -Iinclude
+          gcc -O2 -c src/recon.c -o build/recon.o -Iinclude
+          gcc -O2 -c src/rippra_api.c -o build/rippra_api.o -Iinclude
+          ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+
+      - name: Build and run integration tests
+        run: |
+          gcc -O2 tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline.exe
+          build\test_full_pipeline.exe
+
+      - name: Build and run reconstruction tests
+        run: |
+          gcc -O2 tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon.exe
+          build\test_recon.exe
+
+  # ─── Python ML + ONNX tests ───────────────────────────
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rippra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python deps
+        run: |
+          pip install numpy matplotlib scipy onnx onnxruntime
+
+      - name: Run predictive AO simulation
+        run: python ml/predictive_ao.py
+
+      - name: Test ONNX model loading
+        run: |
+          python ml/test_onnx_models.py
