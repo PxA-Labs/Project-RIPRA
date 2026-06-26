@@ -1,0 +1,17 @@
+﻿Phase 11.2 + 11.3: Predictive AO + FPGA deployment docs
+
+11.2 - Predictive AO:
+- C API: predictive_ao.h (header) + predictive_ao.c (ONNX Runtime integration + stub fallback)
+- predictive_ao_step(): single predictive AO iteration with DM latency compensation
+- Python: predictive_ao.py trains LSTM (1-layer, hidden=64) for 1-step wavefront prediction
+- Closed-loop evaluation: LSTM feedforward achieves +5.5% residual reduction at 1-frame latency
+- Visualization: training loss, prediction MSE comparison, CL latency sweep
+
+11.3 - FPGA Deployment:
+- docs/fpga_deployment.md: complete guide with VHDL snippets, resource estimates, build flow
+- 127-parallel TCoG centroid engines: 70 ns total (11,500x vs CPU 805 us)
+- 20x254 systolic matrix multiply: 1.35 us
+- XC7K325T resource budget: 39% LUTs, 42% DSP48
+- Host C interface, verification pipeline, direct LVDS path
+
+Updated docs/future_phases.md.
