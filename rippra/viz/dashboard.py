@@ -3,6 +3,11 @@
 # Renders all Phase 7 visualizations and generates a summary HTML page.
 import os, sys, webbrowser, base64
 from io import BytesIO
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RIPRA Adaptive Optics Pipeline</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a16; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+.header { text-align: center; padding: 24px 20px 8px; width: 100%; }
+.header h1 { color: #00ff88; font-size: 26px; letter-spacing: 3px; font-weight: 300; }
+.header h1 span { font-weight: 700; }
+.header p { color: #666; font-size: 12px; margin-top: 4px; letter-spacing: 1px; }
+.pipeline { display: flex; align-items: center; justify-content: center; gap: 0; padding: 14px 20px 20px; max-width: 1400px; width: 100%; }
+.stage { background: linear-gradient(160deg, #141428, #0e0e1e); border-radius: 14px; border: 1px solid #2a2a4a; padding: 18px; flex: 1; min-width: 260px; max-width: 440px; position: relative; overflow: hidden; }
+.stage::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #00ff88, transparent); opacity: 0.4; }
+.stage-title { color: #00ff88; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; text-align: center; }
+.stage-wide { max-width: 560px; }
+.arrow-wrap { display: flex; align-items: center; justify-content: center; width: 50px; flex-shrink: 0; }
+.arrow-wrap svg { width: 30px; height: 30px; }
+#spot-canvas { width: 100%; aspect-ratio: 1; background: #060612; border-radius: 0; border: 2px solid #ffffff; display: block; }
+.metrics { margin-top: 10px; }
+.metric { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1a1a30; font-size: 13px; }
+.metric:last-child { border-bottom: none; }
+.metric .label { color: #999; }
+.metric .value { color: #00ff88; font-weight: 600; }
+.algo-list { list-style: none; font-size: 12.5px; color: #ccc; margin: 6px 0 10px; }
+.algo-list li { padding: 4px 0 4px 18px; position: relative; border-bottom: 1px solid #111128; }
+.algo-list li:last-child { border-bottom: none; }
+.algo-list li::before { content: '\25B8'; position: absolute; left: 0; color: #00ff88; }
+.perf-list { list-style: none; font-size: 13px; color: #ccc; margin: 6px 0 10px; padding: 0; }
+.perf-list li { padding: 4px 0 4px 18px; position: relative; }
+.perf-list li::before { content: '\2022'; position: absolute; left: 2px; color: #00ff88; }
+.status-bar { display: flex; justify-content: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.status-item { text-align: center; padding: 4px 10px; background: #0e0e1e; border-radius: 4px; border: 1px solid #1a1a30; min-width: 64px; }
+.status-item .v { color: #00ff88; font-size: 15px; font-weight: 700; }
+.status-item .l { color: #666; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+.wavefront-img { width: 100%; border-radius: 8px; display: block; }
+@media (max-width: 900px) { .pipeline { flex-wrap: wrap; } .arrow-wrap { width: 100%; padding: 4px 0; } .arrow-wrap svg { transform: rotate(90deg); } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>RIPRA</span> Adaptive Optics Pipeline</h1>
+  <p>REAL-TIME WAVEFRONT RECONSTRUCTION - TURBULENCE CHARACTERIZATION - DM MAPPING</p>
+</div>
+<div class="pipeline">
+
+<div class="stage">
+  <div class="stage-title">SH-WFS Time-Series Input</div>
+  <canvas id="spot-canvas" width="400" height="400"></canvas>
+  <div class="status-bar">
+    <div class="status-item"><div class="v">8x8</div><div class="l">Lenslets</div></div>
+    <div class="status-item"><div class="v">648x492</div><div class="l">Camera (px)</div></div>
+    <div class="status-item"><div class="v" id="spot-frame">0</div><div class="l">Frame</div></div>
+  </div>
+</div>
+
+<div class="arrow-wrap">
+  <svg viewBox="0 0 40 24" style="width:40px;height:24px">
+    <polygon points="0,4 28,4 28,0 40,12 28,24 28,20 0,20" fill="#ffffff"/>
+  </svg>
+</div>
+
+<div class="stage">
+  <div class="stage-title">Real-Time Processing Pipeline</div>
+  <ul class="algo-list">
+    <li>iterative centroid estimation</li>
+    <li>iterative centroid estimation</li>
+    <li>zonal reconstruction</li>
+  </ul>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.3);margin:8px 0">
+  <ul class="perf-list">
+    <li>Latency: &lt;1ms/frame</li>
+    <li>Throughput: 500 fps</li>
+    <li>Stability Metric: &sigma; &lt; 0.05&lambda;</li>
+  </ul>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.15);margin:8px 0">
+  <div style="font-size:12.5px;color:#ccc;padding:4px 0;line-height:1.7">
+    Latency: &lt;1ms/frame<br>
+    Throughput: 500 fps<br>
+    Stability Metric: &sigma; &lt; 0.05&lambda;
+  </div>
+</div>
+
+<div class="arrow-wrap">
+  <svg viewBox="0 0 40 24" style="width:40px;height:24px">
+    <polygon points="0,4 28,4 28,0 40,12 28,24 28,20 0,20" fill="#ffffff"/>
+  </svg>
+</div>
+
+<div class="stage stage-wide">
+  <div class="stage-title">Reconstructed Wavefront</div>
+  <img src="wavefront_3d_anim.gif" alt="3D Wavefront Reconstruction" class="wavefront-img">
+</div>
+
+</div>
+
+<script>
+// Spot canvas animation
+var sc=document.getElementById('spot-canvas'),sctx=sc.getContext('2d');
+var frame=0;
+function drawSpots(fr){
+  var S=sc.width,H=sc.height,SP=8,seed=fr*137.5;
+  var rS=S/(SP*2.6),sp=S/(SP+1),off=(S-sp*(SP-1))/2;
+  sctx.fillStyle='#060612';sctx.fillRect(0,0,S,H);
+  for(var r=0;r<SP;r++)for(var c=0;c<SP;c++){
+    var bx=off+c*sp,by=off+r*sp;
+    var dx=Math.sin(seed+r*0.7+c*1.3)*rS*0.4,dy=Math.cos(seed+r*1.1+c*0.5)*rS*0.4;
+    var cx=bx+dx,cy=by+dy,br=0.55+0.35*Math.sin(seed+r*0.9+c*0.4);
+    var bg=sctx.createRadialGradient(cx,cy,0,cx,cy,rS*0.9);
+    bg.addColorStop(0,'rgba('+(230*br|0)+','+(230*br|0)+','+(230*br|0)+',1)');
+    bg.addColorStop(0.15,'rgba('+(200*br|0)+','+(200*br|0)+','+(200*br|0)+',0.95)');
+    bg.addColorStop(0.4,'rgba('+(130*br|0)+','+(130*br|0)+','+(130*br|0)+',0.6)');
+    bg.addColorStop(0.7,'rgba('+(60*br|0)+','+(60*br|0)+','+(60*br|0)+',0.25)');
+    bg.addColorStop(1,'rgba(6,6,24,0)');
+    sctx.fillStyle=bg;sctx.beginPath();sctx.arc(cx,cy,rS*0.9,0,Math.PI*2);sctx.fill();
+    var sdx=Math.sin(seed*0.5+r*0.4+c*1.1)*rS*0.15,sdy=Math.cos(seed*0.4+r*1.2+c*0.7)*rS*0.15;
+    var sg=sctx.createRadialGradient(cx+sdx,cy+sdy,0,cx+sdx,cy+sdy,rS*0.25);
+    sg.addColorStop(0,'rgba(255,255,255,0.7)');sg.addColorStop(1,'rgba(255,255,255,0)');
+    sctx.fillStyle=sg;sctx.beginPath();sctx.arc(cx+sdx,cy+sdy,rS*0.25,0,Math.PI*2);sctx.fill();
+  }
+  document.getElementById('spot-frame').textContent=fr;
+}
+drawSpots(0);
+setInterval(function(){frame++;drawSpots(frame);},100);
+</script>
+</body>
+</html>

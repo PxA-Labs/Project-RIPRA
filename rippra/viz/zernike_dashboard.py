@@ -76,9 +76,50 @@ class ZernikeDashboard:
             print(f"  Saved: {path}")
         return fig
 
-    def plot_zernike_time_series(self, n_frames=500, save=True):
-        """7.2b: Simulated time-series tracking of low-order Zernike modes"""
+    def plot_zernike_time_series(self, save=True):
+        """7.2b: Real time-series tracking of low-order Zernike modes"""
+        ts_path = os.path.join(self.results_dir, 'zernike_time_series.csv')
+        if not os.path.exists(ts_path):
+            print(f"  WARNING: {ts_path} not found. Generate with tools/generate_realistic_ts.py")
+            return self._plot_synthetic_time_series(save)
+
+        df = pd.read_csv(ts_path)
+        n_frames = len(df)
+        nmodes = len([c for c in df.columns if c.startswith('z')])
+
+        # First 5 non-piston modes: z0=Tip(Z2), z1=Tilt(Z3), z2=Defocus(Z4), z3=Astig(Z5), z4=Astig(Z6)
+        n_low = min(5, nmodes)
+        labels = ['Tip (Z2)', 'Tilt (Z3)', 'Defocus (Z4)', 'Astig (Z5)', 'Astig (Z6)']
+        colors = ['#00ff88', '#ff4444', '#4488ff', '#ffaa00', '#cc44ff']
+
+        fig, ax = plt.subplots(figsize=(14, 6))
+        fig.patch.set_facecolor('#1a1a2e')
+        ax.set_facecolor('#1a1a2e')
+
+        frames = np.arange(n_frames)
+        for m in range(n_low):
+            ax.plot(frames, df[f'z{m}'].values, color=colors[m], label=labels[m],
+                    linewidth=1.5, alpha=0.85)
+
+        ax.set_xlabel('Frame', color='white', fontsize=11)
+        ax.set_ylabel('Coefficient (radians)', color='white', fontsize=11)
+        ax.set_title('Low-Order Zernike Modes Over Time', color='white',
+                     fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10, loc='upper right')
+        ax.tick_params(colors='white')
+        ax.grid(True, alpha=0.15, color='gray')
+
+        if save:
+            path = os.path.join(self.out_dir, 'zernike_time_series.png')
+            fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+            plt.close(fig)
+            print(f"  Saved: {path}")
+        return fig
+
+    def _plot_synthetic_time_series(self, save=True):
+        """Fallback synthetic time series if real data unavailable"""
         np.random.seed(42)
+        n_frames = 500
         n_low = 5
         drift = np.zeros((n_frames, n_low))
         for m in range(n_low):
@@ -99,7 +140,7 @@ class ZernikeDashboard:
 
         ax.set_xlabel('Frame', color='white', fontsize=11)
         ax.set_ylabel('Coefficient (radians)', color='white', fontsize=11)
-        ax.set_title('Low-Order Zernike Modes Over Time', color='white',
+        ax.set_title('Low-Order Zernike Modes Over Time (SYNTHETIC)', color='white',
                      fontsize=14, fontweight='bold')
         ax.legend(fontsize=10, loc='upper right')
         ax.tick_params(colors='white')
@@ -109,7 +150,7 @@ class ZernikeDashboard:
             path = os.path.join(self.out_dir, 'zernike_time_series.png')
             fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
             plt.close(fig)
-            print(f"  Saved: {path}")
+            print(f"  Saved: {path} (SYNTHETIC)")
         return fig
 
     def render_all(self):

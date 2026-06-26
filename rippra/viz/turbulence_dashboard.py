@@ -38,18 +38,25 @@ class TurbulenceDashboard:
         return (0.170 * lam**2 * d**(-1/3) / mean_var) ** (3/5)
 
     def plot_turbulence_telemetry(self, save=True):
-        """7.3a: Turbulence parameters summary panel"""
-        dx = self.df_dev['Delta_X'].values
-        dy = self.df_dev['Delta_Y'].values
-        r0 = self.estimate_r0(dx, dy)
-        tau0 = 0.0035  # approximate from earlier test
+        """7.3a: Turbulence parameters summary panel (from real time-series data)"""
+        ts_path = os.path.join(self.results_dir, 'time_series.csv')
+        if os.path.exists(ts_path):
+            ts = pd.read_csv(ts_path)
+            r0 = ts['r0'].mean()
+            tau0 = ts['tau0'].mean()
+        else:
+            dx = self.df_dev['Delta_X'].values
+            dy = self.df_dev['Delta_Y'].values
+            r0 = self.estimate_r0(dx, dy)
+            tau0 = 0.0035
+            print("  WARNING: time_series.csv not found, using single-frame estimate")
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         fig.patch.set_facecolor('#1a1a2e')
 
         for ax, title, val, unit, color in [
-            (ax1, 'Fried Parameter (r₀)', r0*1e3, 'mm', '#00ff88'),
-            (ax2, 'Coherence Time (τ₀)', tau0*1e3, 'ms', '#4488ff'),
+            (ax1, 'Fried Parameter (r0)', r0*100, 'cm', '#00ff88'),
+            (ax2, 'Coherence Time (tau0)', tau0*1000, 'ms', '#4488ff'),
         ]:
             ax.set_facecolor('#0d0d1a')
             ax.text(0.5, 0.6, f'{val:.2f}', ha='center', va='center',
@@ -72,11 +79,19 @@ class TurbulenceDashboard:
         return fig
 
     def plot_turbulence_regime(self, save=True):
-        """7.3b: Turbulence regime classification"""
-        np.random.seed(42)
-        n_frames = 500
-        d_r0 = 1.0 + 9.0 * (0.5 + 0.5 * np.sin(np.linspace(0, 3*np.pi, n_frames)))
-        d_r0 += np.random.randn(n_frames) * 0.3
+        """7.3b: Turbulence regime classification (from real time-series data)"""
+        ts_path = os.path.join(self.results_dir, 'time_series.csv')
+        if os.path.exists(ts_path):
+            ts = pd.read_csv(ts_path)
+            n_frames = len(ts)
+            D = 2.0 * self.cfg['pupil_radius']
+            d_r0 = D / ts['r0'].values
+        else:
+            n_frames = 500
+            np.random.seed(42)
+            d_r0 = 1.0 + 9.0 * (0.5 + 0.5 * np.sin(np.linspace(0, 3*np.pi, n_frames)))
+            d_r0 += np.random.randn(n_frames) * 0.3
+            print("  WARNING: time_series.csv not found, using synthetic data")
 
         thresholds = [3.0, 6.0]
         labels = ['Strong', 'Moderate', 'Weak']
@@ -107,7 +122,7 @@ class TurbulenceDashboard:
                  ha='right', fontsize=10, fontweight='bold')
         ax1.text(n_frames-10, thresholds[0]-0.8, 'Strong', color='#ff4444',
                  ha='right', fontsize=10, fontweight='bold')
-        ax1.set_ylabel('D/r₀', color='white', fontsize=11)
+        ax1.set_ylabel('D/r0', color='white', fontsize=11)
         ax1.set_title('Turbulence Strength Over Time', color='white',
                       fontsize=14, fontweight='bold')
         ax1.tick_params(colors='white')
