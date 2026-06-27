@@ -2,29 +2,29 @@
  * tools/gen_test_data.c — Generate synthetic SHWFS test data for CI
  * Compile: gcc -O2 gen_test_data.c -o gen_test_data -lm
  * Run: ./gen_test_data
+ *
+ * rippa_load_raw() reads double-precision floats, so we write doubles.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <math.h>
 
 static void gen_raw(const char *path, int w, int h, int dx, int dy)
 {
-    uint16_t *buf = (uint16_t*)malloc(w * h * sizeof(uint16_t));
+    double *buf = (double*)malloc(w * h * sizeof(double));
     if (!buf) { fprintf(stderr, "malloc failed\n"); exit(1); }
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             int cx = (x + w/2) % 30, cy = (y + h/2) % 30;
             int sx = cx - 15, sy = cy - 15;
             double d = sqrt((double)(sx-dx)*(sx-dx) + (double)(sy-dy)*(sy-dy));
-            int val = d < 3.5 ? (int)(600 * exp(-d*d/2.5)) : 20 + (rand() % 10);
-            buf[y * w + x] = val < 65535 ? (uint16_t)val : 65535;
+            buf[y * w + x] = d < 3.5 ? 600.0 * exp(-d*d/2.5) : 20.0 + (rand() % 10);
         }
     }
     FILE *fp = fopen(path, "wb");
     if (!fp) { fprintf(stderr, "cannot write %s\n", path); free(buf); exit(1); }
-    fwrite(buf, sizeof(uint16_t), w * h, fp);
+    fwrite(buf, sizeof(double), w * h, fp);
     fclose(fp);
     free(buf);
 }
