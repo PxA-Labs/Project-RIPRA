@@ -14,10 +14,12 @@ static void gen_raw(const char *path, int w, int h, int dx, int dy)
 {
     double *buf = (double*)malloc(w * h * sizeof(double));
     if (!buf) { fprintf(stderr, "malloc failed\n"); exit(1); }
+    /* lenslet pitch ≈ 300um / 7.4um ≈ 40.5 px → use 40-px grid */
+    int pitch = 40, half = pitch / 2;
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            int cx = (x + w/2) % 30, cy = (y + h/2) % 30;
-            int sx = cx - 15, sy = cy - 15;
+            int cx = (x + half) % pitch, cy = (y + half) % pitch;
+            int sx = cx - half, sy = cy - half;
             double d = sqrt((double)(sx-dx)*(sx-dx) + (double)(sy-dy)*(sy-dy));
             buf[y * w + x] = d < 3.5 ? 600.0 * exp(-d*d/2.5) : 20.0 + (rand() % 10);
         }
