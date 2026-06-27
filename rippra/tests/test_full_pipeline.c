@@ -183,7 +183,7 @@ int main(void)
         double *residual = (double*)malloc(nnodes * sizeof(double));
         
         /* 8a: DM apply — residual = input + C * dm_commands */
-        ret = rippra_dm_apply_impl_impl(dm_cmds, nnodes, &zmesh, &cfg, phase, residual);
+        ret = rippra_dm_apply_impl(dm_cmds, nnodes, &zmesh, &cfg, phase, residual);
         TEST(ret == 0, "DM apply computation");
         
         /* With ideal dm_cmds, residual should be near zero */
@@ -198,7 +198,7 @@ int main(void)
         
         /* With gain=1.0, one step should converge nearly perfectly */
         double *res2 = (double*)malloc(nnodes * sizeof(double));
-        rippra_dm_apply_impl_impl(cl_step, nnodes, &zmesh, &cfg, phase, res2);
+        rippra_dm_apply_impl(cl_step, nnodes, &zmesh, &cfg, phase, res2);
         double res2_max = 0;
         for (i = 0; i < nnodes; i++) if (fabs(res2[i]) > res2_max) res2_max = fabs(res2[i]);
         TEST(res2_max < 1e-6, "Closed-loop step residual near zero (gain=1)");

@@ -11,15 +11,27 @@ import matplotlib.pyplot as plt
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.extend([os.path.join(BASE, p) for p in ('ml','tools','bindings')])
 from generate_dataset import get_noll_covariance_matrix
-from evaluate_inference import load_system_config
 
 try:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader, TensorDataset
+    from evaluate_inference import load_system_config
     HAVE_TORCH = True
 except:
     HAVE_TORCH = False
+    def load_system_config(path):
+        cfg = {}
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'): continue
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    k, v = k.strip(), v.split('#', 1)[0].strip()
+                    try: cfg[k] = float(v) if '.' in v or 'e' in v else int(v)
+                    except: cfg[k] = v
+        return cfg
 
 OUT = os.path.join(BASE, '..', 'visualizations')
 os.makedirs(OUT, exist_ok=True)
