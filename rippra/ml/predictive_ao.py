@@ -17,9 +17,19 @@ try:
     import torch.nn as nn
     from torch.utils.data import DataLoader, TensorDataset
     from evaluate_inference import load_system_config
+    class SmallLSTM(nn.Module):
+        def __init__(self, input_dim=20, hidden_dim=64, output_dim=20, num_layers=1):
+            super().__init__()
+            self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+            self.fc = nn.Linear(hidden_dim, output_dim)
+        def forward(self, x):
+            out, _ = self.lstm(x)
+            return self.fc(out[:, -1, :])
     HAVE_TORCH = True
 except:
     HAVE_TORCH = False
+    class SmallLSTM:
+        pass
     def load_system_config(path):
         cfg = {}
         with open(path) as f:
@@ -34,6 +44,7 @@ except:
         return cfg
 
 OUT = os.path.join(BASE, '..', 'visualizations')
+
 os.makedirs(OUT, exist_ok=True)
 
 cfg = load_system_config(os.path.join(BASE, "config", "system.conf"))
@@ -62,15 +73,6 @@ def make_sequences(data, step=1):
             X.append(data[s, t-lookback:t])
             Y.append(data[s, t + step])
     return np.array(X, dtype=np.float32), np.array(Y, dtype=np.float32)
-
-class SmallLSTM(nn.Module):
-    def __init__(self, input_dim=20, hidden_dim=64, output_dim=20, num_layers=1):
-        super().__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, output_dim)
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        return self.fc(out[:, -1, :])
 
 def main():
     print("=== Predictive AO LSTM Training ===")
