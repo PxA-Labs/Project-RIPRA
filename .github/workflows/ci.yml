@@ -79,12 +79,12 @@ jobs:
           if (-not (Test-Path -LiteralPath "build")) { mkdir build }
           if (-not (Test-Path -LiteralPath "data_raw")) { mkdir data_raw }
           gcc -O2 tools/gen_test_data.c -o build/gen_test_data.exe -lm
-          build\gen_test_data.exe
+          .\build\gen_test_data.exe
 
       - name: Run integration tests
         run: |
-          build\test_full_pipeline.exe
-          build\test_recon.exe
+          .\build\test_full_pipeline.exe
+          .\build\test_recon.exe
 
   # ─── Python ML + ONNX tests ───────────────────────────
   python:
