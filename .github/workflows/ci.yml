@@ -34,6 +34,12 @@ jobs:
           gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
           gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
 
+      - name: Generate synthetic test data
+        run: |
+          mkdir -p data_raw
+          gcc -O2 tools/gen_test_data.c -o build/gen_test_data -lm
+          ./build/gen_test_data
+
       - name: Run integration tests (in rippra/, not build/)
         run: |
           ./build/test_full_pipeline
@@ -67,6 +73,13 @@ jobs:
           if (-not (Test-Path -LiteralPath "build")) { mkdir build }
           gcc -O2 tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline.exe
           gcc -O2 tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon.exe
+
+      - name: Generate synthetic test data
+        run: |
+          if (-not (Test-Path -LiteralPath "build")) { mkdir build }
+          if (-not (Test-Path -LiteralPath "data_raw")) { mkdir data_raw }
+          gcc -O2 tools/gen_test_data.c -o build/gen_test_data.exe -lm
+          build\gen_test_data.exe
 
       - name: Run integration tests
         run: |
