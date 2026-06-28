@@ -177,6 +177,7 @@ int rippra_zonal_setup(const rippra_calibration *cal, const rippa_config *cfg, r
     }
     
     mesh->nnodes = nnodes;
+    mesh->nspots = nspots;
     mesh->node_u = (int *)malloc(nnodes * sizeof(int));
     mesh->node_v = (int *)malloc(nnodes * sizeof(int));
     mesh->G = (double *)calloc(2 * nspots * nnodes, sizeof(double));
@@ -259,7 +260,7 @@ void rippra_zonal_free(rippra_zonal_mesh *mesh) {
 }
 
 int rippra_zonal_reconstruct(const rippra_zonal_mesh *mesh, const double *dx, const double *dy, const rippa_config *cfg, double *W) {
-    int nspots = cfg->totlenses;
+    int nspots = mesh->nspots;
     double p = cfg->camera_pixsize;
     double f = cfg->flength;
     
@@ -287,6 +288,7 @@ int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, r
     int nmodes = max_j - 1; /* exclude piston (j = 1) */
     
     model->nmodes = nmodes;
+    model->nspots = nspots;
     model->mode_j = (int *)malloc(nmodes * sizeof(int));
     model->mode_n = (int *)malloc(nmodes * sizeof(int));
     model->mode_m = (int *)malloc(nmodes * sizeof(int));
@@ -369,7 +371,7 @@ void rippra_modal_free(rippra_modal_model *model) {
 }
 
 int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, const double *dy, const rippa_config *cfg, double *coeffs) {
-    int nspots = cfg->totlenses;
+    int nspots = model->nspots;
     double p = cfg->camera_pixsize;
     double f = cfg->flength;
     double lambda = cfg->wavelength;

@@ -16,6 +16,7 @@ extern "C" {
  */
 typedef struct rippra_zonal_mesh {
     int nnodes;
+    int nspots;       /* number of sub-apertures used during setup */
     int *node_u;      /* u-coordinate (column) on the lenslet grid */
     int *node_v;      /* v-coordinate (row) on the lenslet grid */
     double *G;        /* Geometry matrix, size (2 * nspots) x nnodes, row-major */
@@ -28,6 +29,7 @@ typedef struct rippra_zonal_mesh {
  */
 typedef struct rippra_modal_model {
     int nmodes;       /* Number of active modes (e.g. j = 2 to tot_modes) */
+    int nspots;       /* number of sub-apertures used during setup */
     int *mode_j;      /* Noll index for each active mode */
     int *mode_n;      /* Radial order n for each active mode */
     int *mode_m;      /* Azimuthal order m for each active mode */

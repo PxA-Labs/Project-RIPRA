@@ -70,7 +70,7 @@ RIPRA_API rippra_api_config rippra_default_config(void)
     c.camera_pixsize     = 5.3e-6;
     c.frame_width        = 640;
     c.frame_height       = 480;
-    c.totlenses          = 127;
+    c.totlenses          = 140;
     c.flength            = 1e-3;
     c.pitch              = 300e-6;
     c.sa_radius          = 150e-6;

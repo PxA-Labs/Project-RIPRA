@@ -24,7 +24,7 @@ static void default_config(rippa_config *cfg)
     cfg->camera_pixsize     = 7.4e-6;
     cfg->frame_width        = 648;
     cfg->frame_height       = 492;
-    cfg->totlenses          = 127;
+    cfg->totlenses          = 140;
     cfg->flength            = 18e-3;
     cfg->pitch              = 300e-6;
     cfg->sa_radius          = 150e-6;
