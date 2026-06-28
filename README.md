@@ -10,8 +10,9 @@ Project RIPRA implements a hybrid framework combining an optimized real-time **P
 
 ---
 
-## 📂 Interactive Jupyter Notebooks
-You can execute and interact with the complete simulation and training loops using the notebooks in the `notebook/` folder:
+## Interactive Jupyter Notebooks
+
+The calculations, rendering, training, and compilation suites detailed in this report are fully interactive and can be executed via the notebooks located in the `notebook/` folder:
 
 1. **[`kaggle_synthetic_shwfs_generator.ipynb`](./notebook/kaggle_synthetic_shwfs_generator.ipynb):** 
    - Rebuilds the end-to-end WFS pipeline. Renders physical frames, configures system directories, trains the ML reconstructors, and compiles/executes the C POSIX integration test suites.
@@ -26,29 +27,29 @@ You can execute and interact with the complete simulation and training loops usi
 
 ---
 
-## 📊 Visual Diagnostics & Telemetry Dashboard
+## Wavefront Diagnostics and Telemetry Dashboard
 
-Below is a gallery of the physical, wave optics, and machine learning telemetry plots generated during our simulation runs:
+Below is a gallery of the physical, wave optics, and machine learning telemetry plots generated during the simulation runs:
 
-### 1. Optical Spot Shifts & Calibration
+### 1. Optical Spot Shifts and Calibration
 | Flat vs. Aberrated Spots Overlay | Sub-aperture ROI Calibration Grid |
 | :---: | :---: |
 | ![Spot shifts](./simulation_visualization/8_visualisation.png) | ![Sub-aperture ROIs](./simulation_visualization/mshwfs_calibration.png) |
 | Shows reference flat centroids (cyan) vs. aberrated shifts (green) caused by Kolmogorov turbulence. | Bounding search windows (green ROIs) used by the C centroiding engine to isolate spot coordinates. |
 
-### 2. Wavefront Reconstruction & Wave Optics
-| 2D/3D Optical Path Difference (OPD) | Interferometry & PSF Degradation |
+### 2. Wavefront Reconstruction and Wave Optics
+| 2D/3D Optical Path Difference (OPD) | Interferometry and PSF Degradation |
 | :---: | :---: |
 | ![Wavefront Telemetry](./simulation_visualization/81_advanced_wavefront_analysis__telemetr.png) | ![Wave Optics Panel](./simulation_visualization/84_wave_optics__focal_plane_diagnostics.png) |
 | 2D/3D reconstructed phase screen ($W(x,y)$) mapping peak-to-valley optical aberrations. | Simulated Fizeau carrier fringes, ideal Airy Disk vs. aberrated PSF (2D FFT), and central 1D cuts. |
 
-### 3. Closed-Loop Predictive Control & ML Reconstructors
+### 3. Closed-Loop Predictive Control and ML Reconstructors
 | Predictive AO Lag Compensation | Reconstructor Accuracy Benchmark |
 | :---: | :---: |
 | ![Predictive AO](./visualizations/predictive_ao.png) | ![ML Dashboard](./simulation_visualization/111_model_performance_diagnostics_dashbo.png) |
 | Under 1-frame latency, the standard integrator diverges (green) while our LSTM predictor (blue) remains stable. | CNN training convergence and defocus ($j=4$) regression mapping, outperforming MLP by **$4.6\times$**. |
 
-### 4. Turbulence Regimes & Real-Time Performance
+### 4. Turbulence Regimes and Zonal Reconstruction
 | Kolmogorov Statistical Fit | Zonal Phase Reconstruction |
 | :---: | :---: |
 | ![Turbulence Statistics](./simulation_visualization/83_turbulence_statistical_validation.png) | ![Zonal phase](./simulation_visualization/mshwfs_reconstruction.png) |
@@ -56,7 +57,8 @@ Below is a gallery of the physical, wave optics, and machine learning telemetry 
 
 ---
 
-## ⚡ Performance Profiling Benchmarks
+## Real-Time Processing Performance Benchmarks
+
 The real-time pipeline executes in sub-milliseconds on standard CPU threads, making it fully qualified for high-frequency ($1\text{ kHz}$) closed-loop control:
 
 | Pipeline Phase | Algorithm | Latency ($\mu\text{s}$) |
@@ -68,7 +70,7 @@ The real-time pipeline executes in sub-milliseconds on standard CPU threads, mak
 
 ---
 
-## 🛠️ Installation & Getting Started
+## Installation and Execution Guide
 
 ### 1. Build the POSIX C Library
 Compile the static archive `librippra.a` and the integration tests using GCC with OpenMP support:
