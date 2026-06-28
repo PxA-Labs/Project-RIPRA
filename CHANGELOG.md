@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CMake build system to replace hardcoded Dockerfile gcc invocations.
 - Default configuration YAML file (`config/default.yaml`).
 - TCoG zero-denominator guards and NaN propagation masks in `centroid.c` to prevent silent corruption.
-- MIT License.
+- Apache 2.0 License.
+- SECURITY.md security policy.
 
 ### Changed
 - Replaced missing configuration imports in Docker build with actual configuration file.
+- Updated project license from MIT to Apache 2.0.
 
 ### Fixed
 - Fixed integer overflow vulnerability by ensuring centroid accumulators utilize double precision.
