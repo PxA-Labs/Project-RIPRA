@@ -3,6 +3,9 @@ predictive_ao.py — Phase 11.2: Predictive AO with LSTM feedforward training pi
 Shows the end-to-end training + evaluation of a predictive AO LSTM.
 """
 import os, sys, math, json
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
