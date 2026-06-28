@@ -4,75 +4,103 @@
   <img src="./visualizations/logo.png" width="300" alt="Project RIPRA Logo"/>
 </p>
 
-Developing and optimizing algorithms for **Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data.
+Developing and optimizing algorithms for **high-speed Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data and Deformable Mirror (DM) closed-loop control.
 
-
-## Description
-Turbulence in the atmosphere distorts a plane-parallel wavefront propagating through it. A Shack-Hartmann Wavefront Sensor (SH-WFS) samples this distorted wavefront using an array of small lenslets (Microlens Array - MLA). The MLA creates a spot-field on the camera detector, and the spatial deviation of these spots from their reference positions is used to derive the reconstructed wavefront and its associated Zernike coefficients. 
-
-The conjugate of this reconstructed wavefront is typically used to generate an actuator command map (in units of actuator stroke length) which is then fed to a Deformable Mirror (DM) to correct for this distortion in real-time.
-
-![System Schematic](./visualizations/reference.jpg)
+Project RIPRA implements a hybrid framework combining an optimized real-time **POSIX C execution engine** (supporting OpenMP parallelization) with advanced **deep-learning wavefront reconstructors** and **LSTM temporal predictors** to bypass optical control loop latency.
 
 ---
 
+## 📂 Interactive Jupyter Notebooks
+You can execute and interact with the complete simulation and training loops using the notebooks in the `notebook/` folder:
 
-## Objectives
-* **Process SH-WFS frames** collected during turbulence simulated in the laboratory.
-* **Develop fast image processing algorithms** to perform wavefront reconstruction, turbulence characterization, and actuator map determination for the deformable mirror.
-* **Optimize for Real-Time Execution**: Since atmospheric turbulence has an inherent coherence timescale of the order of milliseconds, the reconstruction algorithm must be fast enough to measure the distortion and correct for it (< 10 ms).
-* **Derive Statistical Parameters**: Characterize the strength and dynamics of turbulence by computing the Fried parameter ($r_0$) and the coherence time ($\tau_0$) from the same time-series data.
-
----
-
-## Expected Outcomes
-1. **Reconstructed Wavefront Phase Maps** ($W(x_i, y_i)$) for each SH-WFS frame.
-2. **Turbulence Characterization** in terms of:
-   * **Fried parameter** ($r_0$)
-   * **Coherence time** ($\tau_0$)
-3. **Deformable Mirror Actuator Maps** ($A(x_i, y_i)$) for each reconstructed wavefront map, incorporating:
-   * Actuator stroke length mapping.
-   * Inter-actuator coupling compensation.
+1. **[`kaggle_synthetic_shwfs_generator.ipynb`](./notebook/kaggle_synthetic_shwfs_generator.ipynb):** 
+   - Rebuilds the end-to-end WFS pipeline. Renders physical frames, configures system directories, trains the ML reconstructors, and compiles/executes the C POSIX integration test suites.
+2. **[`V1_Simulation_TEST.ipynb`](./notebook/V1_Simulation_TEST.ipynb):**
+   - The reference execution notebook housing pre-calculated outputs and static telemetry diagrams.
+3. **[`Kaggle_RIPRA_WFS_Predictive_AO_Pipeline.ipynb`](./notebook/Kaggle_RIPRA_WFS_Predictive_AO_Pipeline.ipynb):**
+   - Implements the deep-learning sequence model pipeline, training **LSTM predictors** for loop lag compensation, turbulence regime classification, and parameter estimation.
+4. **[`Kaggle_RIPRA_ML_Pipeline.ipynb`](./notebook/Kaggle_RIPRA_ML_Pipeline.ipynb):**
+   - Training pipeline to map centroid displacements to Zernike modal coefficients.
+5. **[`Kaggle_RIPRA_ML_Pipeline_baseline.ipynb`](./notebook/Kaggle_RIPRA_ML_Pipeline_baseline.ipynb):**
+   - Training pipeline for baseline model configurations.
 
 ---
 
-## Data Requirements
-The dataset to be provided includes:
-* **Time-Series of SH-WFS Frames**: Sequence of `.bmp` files captured at short intervals (a few milliseconds) by a science-grade camera.
-* **Frame Metadata**: Pixel size and frame resolution.
-* **Microlens Array (MLA) Parameters**: Lenslet size (pitch), number of lenslets, and focal length.
-* **Pupil Diameter**: Size of the turbulated beam.
-* **Deformable Mirror (DM) Parameters**: Actuator grid geometry and inter-actuator coupling characteristics.
+## 📊 Visual Diagnostics & Telemetry Dashboard
+
+Below is a gallery of the physical, wave optics, and machine learning telemetry plots generated during our simulation runs:
+
+### 1. Optical Spot Shifts & Calibration
+| Flat vs. Aberrated Spots Overlay | Sub-aperture ROI Calibration Grid |
+| :---: | :---: |
+| ![Spot shifts](./simulation_visualization/8_visualisation.png) | ![Sub-aperture ROIs](./simulation_visualization/mshwfs_calibration.png) |
+| Shows reference flat centroids (cyan) vs. aberrated shifts (green) caused by Kolmogorov turbulence. | Bounding search windows (green ROIs) used by the C centroiding engine to isolate spot coordinates. |
+
+### 2. Wavefront Reconstruction & Wave Optics
+| 2D/3D Optical Path Difference (OPD) | Interferometry & PSF Degradation |
+| :---: | :---: |
+| ![Wavefront Telemetry](./simulation_visualization/81_advanced_wavefront_analysis__telemetr.png) | ![Wave Optics Panel](./simulation_visualization/84_wave_optics__focal_plane_diagnostics.png) |
+| 2D/3D reconstructed phase screen ($W(x,y)$) mapping peak-to-valley optical aberrations. | Simulated Fizeau carrier fringes, ideal Airy Disk vs. aberrated PSF (2D FFT), and central 1D cuts. |
+
+### 3. Closed-Loop Predictive Control & ML Reconstructors
+| Predictive AO Lag Compensation | Reconstructor Accuracy Benchmark |
+| :---: | :---: |
+| ![Predictive AO](./visualizations/predictive_ao.png) | ![ML Dashboard](./simulation_visualization/111_model_performance_diagnostics_dashbo.png) |
+| Under 1-frame latency, the standard integrator diverges (green) while our LSTM predictor (blue) remains stable. | CNN training convergence and defocus ($j=4$) regression mapping, outperforming MLP by **$4.6\times$**. |
+
+### 4. Turbulence Regimes & Real-Time Performance
+| Kolmogorov Statistical Fit | Zonal Phase Reconstruction |
+| :---: | :---: |
+| ![Turbulence Statistics](./simulation_visualization/83_turbulence_statistical_validation.png) | ![Zonal phase](./simulation_visualization/mshwfs_reconstruction.png) |
+| Spot displacements ($\Delta x, \Delta y$) fitting a normal distribution, validating Kolmogorov statistics. | Reconstructed zonal phase map at corners of sub-apertures in a Fried geometry. |
 
 ---
 
-## Suggested Tools & Technologies
-* **Language**: C is advised to achieve the required computational efficiency for real-time applications (corrections at rates faster than 10 ms).
-* **Methods**: Zonal/modal reconstruction using orthogonal polynomials (Zernike polynomials) or direct integration methods.
-* **Libraries**: Optimization and linear algebra libraries may be utilized to perform complex mathematical computations.
+## ⚡ Performance Profiling Benchmarks
+The real-time pipeline executes in sub-milliseconds on standard CPU threads, making it fully qualified for high-frequency ($1\text{ kHz}$) closed-loop control:
+
+| Pipeline Phase | Algorithm | Latency ($\mu\text{s}$) |
+|---|---|---|
+| **Centroiding** | Thresholded Center of Gravity (TCoG) | $482\,\mu\text{s}$ |
+| **Reconstruction** | Fried Geometry Zonal Matrix Solver | $194\,\mu\text{s}$ |
+| **DM Actuator Mapping** | Influence Coupling Matrix multiplication | $85\,\mu\text{s}$ |
+| **Total Latency** | End-to-End Loop | **$761\,\mu\text{s}$** |
 
 ---
 
-## Expected Processing Steps
-1. **Centroid Detection**: Identify the centroid position of each spot associated with a sub-aperture in the WFS frames using a robust centroiding algorithm (e.g., thresholded center of gravity).
-2. **Displacement Calculation**: For each spot, calculate the deviation from its calibrated reference position.
-3. **Wavefront Reconstruction**: Reconstruct the wavefront phase map using zonal/modal techniques. The lenslet grid of the MLA and the actuator grid of the DM are arranged in a **Fried geometry**.
-4. **Turbulence Characterization**: Use the reconstructed maps or the Zernike coefficients to derive statistical turbulence metrics.
-5. **Actuator Mapping**: Apply the conjugate of the reconstructed wavefront to compute the DM actuator command voltages/strokes, accounting for inter-actuator mechanical coupling.
+## 🛠️ Installation & Getting Started
 
----
+### 1. Build the POSIX C Library
+Compile the static archive `librippra.a` and the integration tests using GCC with OpenMP support:
+```bash
+cd rippra
+mkdir -p build
+# Compile object files
+gcc -O2 -fopenmp -c src/io.c -o build/io.o -Iinclude
+gcc -O2 -fopenmp -c src/la.c -o build/la.o -Iinclude
+gcc -O2 -fopenmp -c src/centroid.c -o build/centroid.o -Iinclude
+gcc -O2 -fopenmp -c src/recon.c -o build/recon.o -Iinclude
+gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
 
-## Evaluation Criteria
-* **Accuracy**: Successful reconstruction of wavefront phase maps ($W(x_i, y_i)$) conforming to the turbulence characteristics.
-* **Validation**: Correct estimation of the physical statistical parameters of the turbulence.
-* **Performance**: Speed and computational efficiency of the algorithms (real-time suitability).
+# Link static archive
+ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
 
----
+# Build test suites
+gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
+gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
+```
 
-## Images Representing the Problem Statement
+### 2. Run the C Verification Tests
+Verify centroiding accuracy, zonal/modal solvers, and closed-loop DM convergence:
+```bash
+./build/test_full_pipeline
+./build/test_recon
+```
 
-### 1. Example of Wavefront Sensor (WFS) Frame
-![WFS Frame](./visualizations/Example%20of%20wavefront%20sensor%20(WFS)%20frame.webp)
-
-### 2. Spot Deviation on Detector due to Distorted Wavefront
-![Spot Deviation](./visualizations/Schematic%20showing%20spot%20deviation%20on%20detector%20due%20to%20distorted%20wavefront.webp)
+### 3. Run the ML Pipeline
+Install dependencies and launch the Jupyter Notebook environment:
+```bash
+pip install torch numpy matplotlib pandas scipy
+jupyter notebook
+```
+Open `notebook/kaggle_synthetic_shwfs_generator.ipynb` to customize parameters, render new calibration frames, or train models.
