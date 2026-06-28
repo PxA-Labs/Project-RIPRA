@@ -6,6 +6,10 @@
 
 Developing and optimizing algorithms for **Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data.
 
+> **Note:** For a comprehensive analysis of the project results, detailed mathematical formulations, and the complete gallery of all 11 simulation telemetry plots, please refer to our [GitHub Discussion: End-to-End Wavefront Reconstruction & Control Benchmarks](https://github.com/PxA-Labs/Project-RIPRA/discussions).
+
+---
+
 ## Description
 Turbulence in the atmosphere distorts a plane-parallel wavefront propagating through it. A Shack-Hartmann Wavefront Sensor (SH-WFS) samples this distorted wavefront using an array of small lenslets (Microlens Array - MLA). The MLA creates a spot-field on the camera detector, and the spatial deviation of these spots from their reference positions is used to derive the reconstructed wavefront and its associated Zernike coefficients. 
 
@@ -17,7 +21,7 @@ The conjugate of this reconstructed wavefront is typically used to generate an a
 
 ## Interactive Jupyter Notebooks
 
-The calculations, rendering, training, and compilation suites detailed in this report are fully interactive and can be executed via the notebooks located in the `notebook/` folder:
+The calculations, rendering, training, and compilation suites detailed in this project are fully interactive and can be executed via the notebooks located in the `notebook/` folder:
 
 1. **[`kaggle_synthetic_shwfs_generator.ipynb`](./notebook/kaggle_synthetic_shwfs_generator.ipynb):** 
    - Rebuilds the end-to-end WFS pipeline. Renders physical frames, configures system directories, trains the ML reconstructors, and compiles/executes the C POSIX integration test suites.
@@ -32,58 +36,24 @@ The calculations, rendering, training, and compilation suites detailed in this r
 
 ---
 
-## Simulation Diagnostics and Wavefront Telemetry
+## Wavefront Diagnostics and Telemetry Highlights
 
-Below is a structured analysis of the physical, wave optics, and machine learning telemetry plots generated during the simulation runs:
+Below are the key visual outcomes of the physical simulation and closed-loop control loops. 
 
-### 1. Detector Spot Shifts Overlay
-![Detector Spot Shifts](./simulation_visualization/8_visualisation.png)
-* **Objective:** Validate spot displacement detection across the sensor pupil.
-* **Results:** Shows reference flat centroids (cyan) overlaid with shifted aberrated spots (green) caused by simulated $2.0\text{ rad RMS}$ Kolmogorov turbulence, resulting in a maximum spot shift of $15.69\text{ px}$.
-* **Impact:** Confirms the sub-aperture spot displacement simulation is highly linear and free from grid-aliasing.
-
-### 2. Sub-aperture ROI Calibration Grid
-![Sub-aperture ROIs](./simulation_visualization/mshwfs_calibration.png)
-* **Objective:** Establish search windows (Regions of Interest) for the centroiding algorithm.
-* **Results:** Maps active sub-aperture ROIs (green circles) on the detector grid.
-* **Impact:** Prevents centroid search crossover, ensuring independent processing of each lenslet spot profile.
-
-### 3. Wavefront Optical Path Difference (OPD) Phase Map
+### 1. Wavefront Optical Path Difference (OPD) Phase Map
 ![Wavefront Telemetry](./simulation_visualization/81_advanced_wavefront_analysis__telemetr.png)
 * **Description:** Renders the 2D reconstructed phase screen ($W(x,y)$) alongside a 3D elevation map showing peaks (positive phase delay) and valleys (negative phase delay) of the optical aberration.
 * **Impact:** Confirms high-fidelity reconstruction of low-order modes (Tip, Tilt, Defocus) across the circular pupil boundary.
 
-### 4. Wave Optics and Point Spread Function (PSF) Degradation
-![Wave Optics Panel](./simulation_visualization/84_wave_optics__focal_plane_diagnostics.png)
-* **Description:** Integrates a simulated Fizeau interferogram (vertical carrier fringes), perfect diffraction-limited Airy Disk vs. aberrated PSF (2D FFT), and horizontal/vertical 1D phase profile slices.
-* **Impact:** Quantifies the degradation in imaging resolution (Strehl ratio) caused by the optical phase aberrations.
-
-### 5. Kolmogorov Statistical Fit
-![Turbulence Statistics](./simulation_visualization/83_turbulence_statistical_validation.png)
-* **Objective:** Mathematically validate the turbulence generation model.
-* **Results:** Fits spot displacements ($\Delta x, \Delta y$) to a Gaussian distribution.
-* **Impact:** Proves that the synthetic wavefront generator physically conforms to atmospheric Kolmogorov turbulence scaling laws.
-
-### 6. Zonal Wavefront Reconstruction Grid
-![Zonal phase](./simulation_visualization/mshwfs_reconstruction.png)
-* **Objective:** Reconstruct phase values at the corners of sub-apertures.
-* **Results:** Maps the discrete zonal wavefront surface using Fried geometry.
-* **Impact:** Serves as the high-resolution zonal phase input for Deformable Mirror actuator mapping.
-
-### 7. Predictive AO Lag Compensation
-![Predictive AO](./visualizations/predictive_ao.png)
-* **Objective:** Mitigate servo-lag error caused by processing latency.
-* **Results:** Trains an LSTM predictor on historical Zernike sequences. Under 1-frame latency, a standard integrator control loop diverges (green curve), whereas the LSTM predictor (blue curve) remains stable, reducing residual RMS error by $6.6\%$.
-* **Impact:** Prevents loop instability in high-speed optical systems operating under hardware delay.
-
-### 8. Deep Learning Reconstructor Accuracy Benchmarks
+### 2. Deep Learning Reconstructor Accuracy Benchmarks
 ![ML Dashboard](./simulation_visualization/111_model_performance_diagnostics_dashbo.png)
 * **Description:** Displays MLP vs. CNN training loss convergence, defocus mode regression accuracy, and mode-by-mode Pearson correlation comparison.
 * **Impact:** The Conv2D CNN reconstructor achieves a test MSE of **$0.001957$** (mean correlation of **$99.97\%$**), representing a **$4.6\times$** accuracy gain over the MLP baseline.
 
-### 9. Primary Zernike Mode Shapes Reference Gallery
-![Zernike Modes Reference Gallery](./simulation_visualization/82_educational_gallery_reference_zernike.png)
-* **Description:** Displays the 2D shapes of the first 6 active Zernike polynomial modes (Tip, Tilt, Defocus, Astigmatism, Coma).
+### 3. Predictive AO Lag Compensation
+![Predictive AO](./visualizations/predictive_ao.png)
+* **Description:** Trains an LSTM predictor on historical Zernike sequences. Under 1-frame latency, a standard integrator control loop diverges (green curve), whereas the LSTM predictor (blue curve) remains stable, reducing residual RMS error by $6.6\%$.
+* **Impact:** Prevents loop instability in high-speed optical systems operating under hardware delay.
 
 ---
 
