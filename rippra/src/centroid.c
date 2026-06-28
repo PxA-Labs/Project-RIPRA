@@ -211,12 +211,12 @@ static void tcog_window(const double *frame, int w,
             m += v;
         }
     }
-    if (m > 0.0) {
+    if (m > 1e-9) {
         *out_cx = sx / m;
         *out_cy = sy / m;
     } else {
-        *out_cx = 0.5 * (col_min + col_max);
-        *out_cy = 0.5 * (row_min + row_max);
+        *out_cx = NAN;
+        *out_cy = NAN;
     }
     *out_mass = m;
 }
@@ -248,12 +248,12 @@ static void tcog_window_fast(const double *frame, int w,
             m += v;
         }
     }
-    if (m > 0.0) {
+    if (m > 1e-9) {
         *out_cx = sx / m;
         *out_cy = sy / m;
     } else {
-        *out_cx = 0.5 * (col_min + col_max);
-        *out_cy = 0.5 * (row_min + row_max);
+        *out_cx = NAN;
+        *out_cy = NAN;
     }
     *out_mass = m;
 }
