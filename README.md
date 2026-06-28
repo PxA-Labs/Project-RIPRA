@@ -4,76 +4,71 @@
   <img src="./visualizations/logo.png" width="300" alt="Project RIPRA Logo"/>
 </p>
 
-Developing and optimizing algorithms for **Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data.
+Developing and optimizing algorithms for **Wavefront Reconstruction** and **Turbulence Characterization** using Shack-Hartmann Wavefront Sensor (SH-WFS) time-series data. Target: **ISRO BAH 2026 Problem Statement 9**.
 
+## Overview
+Project RIPRA processes high-speed SH-WFS frames to perform real-time Adaptive Optics (AO) correction. The system estimates turbulence parameters ($r_0$, $\tau_0$) and computes Deformable Mirror (DM) actuator commands in under 10 ms.
 
-## Description
-Turbulence in the atmosphere distorts a plane-parallel wavefront propagating through it. A Shack-Hartmann Wavefront Sensor (SH-WFS) samples this distorted wavefront using an array of small lenslets (Microlens Array - MLA). The MLA creates a spot-field on the camera detector, and the spatial deviation of these spots from their reference positions is used to derive the reconstructed wavefront and its associated Zernike coefficients. 
+## Architecture
+The pipeline is a C/CUDA + ONNX hybrid, optimizing for real-time inference and classical linear algebra (OpenBLAS).
 
-The conjugate of this reconstructed wavefront is typically used to generate an actuator command map (in units of actuator stroke length) which is then fed to a Deformable Mirror (DM) to correct for this distortion in real-time.
+```text
+[ BMP Frames ] --> [ TCoG Centroiding ] --> [ Displacement Calculation ] --> [ Zonal/Modal Recon ]
+                                                                                   |
+                                                                       [ Actuator Mapping ] --> [ DM Control ]
+```
 
-![System Schematic](./visualizations/reference.jpg)
+## Installation & Quick Start
+Dependencies: `cmake`, `make`, `gcc`/`clang`, `OpenMP`, `OpenBLAS`. Optional: `CUDA Toolkit`.
 
----
+```bash
+# 1. Clone repository
+git clone https://github.com/PxA-Labs/Project-RIPRA.git
+cd Project-RIPRA
 
+# 2. Build via CMake
+mkdir build && cd build
+cmake .. && make
 
-## Objectives
-* **Process SH-WFS frames** collected during turbulence simulated in the laboratory.
-* **Develop fast image processing algorithms** to perform wavefront reconstruction, turbulence characterization, and actuator map determination for the deformable mirror.
-* **Optimize for Real-Time Execution**: Since atmospheric turbulence has an inherent coherence timescale of the order of milliseconds, the reconstruction algorithm must be fast enough to measure the distortion and correct for it (< 10 ms).
-* **Derive Statistical Parameters**: Characterize the strength and dynamics of turbulence by computing the Fried parameter ($r_0$) and the coherence time ($\tau_0$) from the same time-series data.
+# 3. Run Tests
+ctest
 
----
+# 4. Execute reconstruction (synthetic data)
+./test_recon
+```
 
-## Expected Outcomes
-1. **Reconstructed Wavefront Phase Maps** ($W(x_i, y_i)$) for each SH-WFS frame.
-2. **Turbulence Characterization** in terms of:
-   * **Fried parameter** ($r_0$)
-   * **Coherence time** ($\tau_0$)
-3. **Deformable Mirror Actuator Maps** ($A(x_i, y_i)$) for each reconstructed wavefront map, incorporating:
-   * Actuator stroke length mapping.
-   * Inter-actuator coupling compensation.
+## Key Equations
 
----
+### Thresholded Centre-of-Gravity (TCoG)
+Computes the sub-aperture spot centroid:
+$$ \bar{x} = \frac{\sum_{i} x_i I_i \mathcal{T}_i}{\sum_{i} I_i \mathcal{T}_i} $$
+where $\mathcal{T}_i$ is the threshold mask.
 
-## Data Requirements
-The dataset to be provided includes:
-* **Time-Series of SH-WFS Frames**: Sequence of `.bmp` files captured at short intervals (a few milliseconds) by a science-grade camera.
-* **Frame Metadata**: Pixel size and frame resolution.
-* **Microlens Array (MLA) Parameters**: Lenslet size (pitch), number of lenslets, and focal length.
-* **Pupil Diameter**: Size of the turbulated beam.
-* **Deformable Mirror (DM) Parameters**: Actuator grid geometry and inter-actuator coupling characteristics.
+### Least-Squares Reconstruction
+$$ \boldsymbol{\phi} = \mathbf{D}^+ \mathbf{s} $$
+where $\mathbf{D}^+$ is the Moore-Penrose pseudo-inverse of the geometry matrix.
 
----
+### Turbulence Characterization
+Fried parameter $r_0$ is derived from slope variance:
+$$ \sigma_s^2 = 0.358 \left(\frac{d}{r_0}\right)^{5/3} \frac{\lambda^2}{4\pi^2 d^2} $$
 
-## Suggested Tools & Technologies
-* **Language**: C is advised to achieve the required computational efficiency for real-time applications (corrections at rates faster than 10 ms).
-* **Methods**: Zonal/modal reconstruction using orthogonal polynomials (Zernike polynomials) or direct integration methods.
-* **Libraries**: Optimization and linear algebra libraries may be utilized to perform complex mathematical computations.
+Coherence time $\tau_0$:
+$$ \tau_0 = 0.314\,\frac{r_0}{v_\perp} $$
 
----
+## Benchmarks (Target)
+| Stage | CPU (naive) | GPU (CUDA) | Budget |
+|---|---|---|---|
+| I/O + Decode | 2-5 ms | 0.1 ms | < 1 ms |
+| Centroiding | 0.8 ms | 0.05 ms | < 0.5 ms |
+| Wavefront Recon (MVM) | 3-8 ms | 0.1 ms | < 2 ms |
+| **Total** | **~20 ms** | **< 0.5 ms** | **< 10 ms** |
 
-## Expected Processing Steps
-1. **Centroid Detection**: Identify the centroid position of each spot associated with a sub-aperture in the WFS frames using a robust centroiding algorithm (e.g., thresholded center of gravity).
-2. **Displacement Calculation**: For each spot, calculate the deviation from its calibrated reference position.
-3. **Wavefront Reconstruction**: Reconstruct the wavefront phase map using zonal/modal techniques. The lenslet grid of the MLA and the actuator grid of the DM are arranged in a **Fried geometry**.
-4. **Turbulence Characterization**: Use the reconstructed maps or the Zernike coefficients to derive statistical turbulence metrics.
-5. **Actuator Mapping**: Apply the conjugate of the reconstructed wavefront to compute the DM actuator command voltages/strokes, accounting for inter-actuator mechanical coupling.
+## Outputs
+*(Output visualizations like Zernike bar plots and wavefront phase maps will be published here upon dataset testing)*
 
----
-
-## Evaluation Criteria
-* **Accuracy**: Successful reconstruction of wavefront phase maps ($W(x_i, y_i)$) conforming to the turbulence characteristics.
-* **Validation**: Correct estimation of the physical statistical parameters of the turbulence.
-* **Performance**: Speed and computational efficiency of the algorithms (real-time suitability).
-
----
-
-## Images Representing the Problem Statement
-
-### 1. Example of Wavefront Sensor (WFS) Frame
-![WFS Frame](./visualizations/Example%20of%20wavefront%20sensor%20(WFS)%20frame.webp)
-
-### 2. Spot Deviation on Detector due to Distorted Wavefront
-![Spot Deviation](./visualizations/Schematic%20showing%20spot%20deviation%20on%20detector%20due%20to%20distorted%20wavefront.webp)
-
+## References
+1. Hardy, J. W. (1998). *Adaptive Optics for Astronomical Telescopes*. Oxford University Press.
+2. Noll, R. J. (1976). Zernike polynomials and atmospheric turbulence. *JOSA*, 66(3), 207-211.
+3. Fried, D. L. (1966). Optical resolution through a randomly inhomogeneous medium. *JOSA*, 56(10), 1372-1379.
+4. Southwell, W. H. (1980). Wave-front estimation from wave-front slope measurements. *JOSA*, 70(8), 998-1006.
+5. Roddier, F. (1999). *Adaptive Optics in Astronomy*. Cambridge University Press.
