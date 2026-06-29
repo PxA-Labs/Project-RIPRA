@@ -44,44 +44,21 @@ RUN pip3 install --no-cache-dir \
 WORKDIR /workspace
 
 # Copy entire project
-COPY rippra/ ./rippra/
-COPY docs/    ./docs/
-COPY config/  ./config/
+COPY . .
 
-# Build C library (static)
-WORKDIR /workspace/rippra
-RUN mkdir -p bin && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/centroid.c -o bin/centroid.o && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/io.c -o bin/io.o && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/la.c -o bin/la.o && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/recon.c -o bin/recon.o && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/stream.c -o bin/stream.o && \
-    gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c src/rippra_api.c -o bin/rippra_api.o && \
-    gcc -shared -fopenmp -o bin/librippra.so \
-        bin/centroid.o bin/io.o bin/la.o bin/recon.o bin/stream.o bin/rippra_api.o && \
-    echo "Build complete"
-
-# Build test programs
-RUN gcc -std=c99 -Wall -Wextra -O2 -fopenmp -DNDEBUG \
-        -Iinclude -c tests/test_recon.c -o bin/test_recon.o && \
-    gcc -fopenmp -o bin/test_recon \
-        bin/test_recon.o bin/centroid.o bin/io.o bin/la.o bin/recon.o bin/stream.o && \
-    echo "Test binaries built"
+# Build C library and tests using CMake
+RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build
 
 # Export ONNX models
-RUN cd ml && python3 export_onnx.py --output_dir /workspace/rippra/onnx_models && \
+RUN cd rippra/ml && python3 export_onnx.py --output_dir /workspace/rippra/onnx_models && \
     echo "ONNX export complete"
 
 # Run baseline tests
 RUN echo "=== Testing C reconstructor ===" && \
-    ./bin/test_recon && \
+    ./build/test_recon && \
     echo "=== C tests passed ==="
 
 # Default command
 CMD ["/bin/bash"]
+
