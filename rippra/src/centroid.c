@@ -399,10 +399,16 @@ void rippa_compute_deltas(const double *cx, const double *cy,
     int i;
     (void)nspots;
     for (i = 0; i < cal->nspots; ++i) {
-        dx[i] = cx[i] - cal->subaps[i].ref_cx;
-        dy[i] = cy[i] - cal->subaps[i].ref_cy;
+        if (isnan(cx[i]) || isnan(cy[i])) {
+            dx[i] = 0.0;
+            dy[i] = 0.0;
+        } else {
+            dx[i] = cx[i] - cal->subaps[i].ref_cx;
+            dy[i] = cy[i] - cal->subaps[i].ref_cy;
+        }
     }
 }
+
 
 int rippa_compute_centroids_refined(const double *frame, int width, int height,
                                      const rippra_calibration *cal,
