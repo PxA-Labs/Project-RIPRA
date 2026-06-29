@@ -37,7 +37,7 @@ jobs:
       - name: Generate synthetic test data
         run: |
           pip install --quiet numpy
-          python -c "import numpy as np, os, math, sys; sys.path.insert(0, 'ml'); from synthetic_shwfs import generate_test_data; CFG = {'camera_pixsize':7.4e-6,'frame_width':648,'frame_height':492,'pitch':300e-6,'flength':18e-3,'pupil_radius':2e-3,'sa_radius':150e-6,'zernike_nmax':5,'thresh_binary':0.08,'centroid_percent':0.2}; r = generate_test_data('data_raw', CFG); print(f'Generated {r[\"nspots\"]} spots, |dx|max={abs(r[\"dx\"]).max():.2f} px')"
+          python ml/synthetic_shwfs.py
 
       - name: Run integration tests
         run: |
@@ -81,7 +81,7 @@ jobs:
       - name: Generate synthetic test data
         run: |
           pip install --quiet numpy
-          python -c "import numpy as np, os, sys; sys.path.insert(0, 'ml'); from synthetic_shwfs import generate_test_data; CFG = {'camera_pixsize':7.4e-6,'frame_width':648,'frame_height':492,'pitch':300e-6,'flength':18e-3,'pupil_radius':2e-3,'sa_radius':150e-6,'zernike_nmax':5,'thresh_binary':0.08,'centroid_percent':0.2}; r = generate_test_data('data_raw', CFG); print(f'Generated {r[\"nspots\"]} spots, |dx|max={abs(r[\"dx\"]).max():.2f} px')"
+          python ml/synthetic_shwfs.py
 
       - name: Run integration tests
         run: |
