@@ -93,19 +93,32 @@ gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build
 ```
 
 ### 2. Run the C Verification Tests
-Verify centroiding accuracy, zonal/modal solvers, and closed-loop DM convergence:
+Verify centroiding accuracy, zonal/modal solvers, ground-truth validations, and closed-loop DM convergence:
 ```bash
 ./build/test_full_pipeline
 ./build/test_recon
 ```
 
+**Representative Output Metrics (Validated against Ground Truth):**
+* **Centroiding Accuracy:** `Displacement RMSE: 0.0968 px` (asserted $< 0.25$ px)
+* **Reconstruction Accuracy:** `Scaled Zernike RMSE: 0.0154 rad` (asserted $< 0.5$ rad)
+* **Strehl Ratio (Marechal):** `1.0000` (flat) / computed dynamically from phase variance
+* **DM Correction Residual:** Converges to `< 1e-8 rad` in 6 iterations (gain = 0.5)
+
 ### 3. Run the ML Pipeline
 Install dependencies and launch the Jupyter Notebook environment:
 ```bash
-pip install torch numpy matplotlib pandas scipy
+pip install torch numpy matplotlib pandas scipy onnx onnxruntime
 jupyter notebook
 ```
 Open `notebook/kaggle_synthetic_shwfs_generator.ipynb` to customize parameters, render new calibration frames, or train models.
+
+### 4. Unified Reproducibility Sweep
+To verify the entire calibration, dataset generation, MLP model training, and ONNX temporal simulation in a single command, run the unified cross-platform sweep script:
+```bash
+python tools/reproduce_all.py
+```
+This script dynamically builds the C assets, runs C calibration, generates a 500-sample Kolmogorov turbulence dataset, trains an MLP reconstructor for 3 epochs, and runs the ONNX validation and predictive AO sequence checks.
 
 ---
 
