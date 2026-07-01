@@ -35,3 +35,20 @@ add_test(NAME full_pipeline_test COMMAND test_full_pipeline)
 # Set working directory for tests so they can load system.conf and data files
 set_tests_properties(recon_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
 set_tests_properties(full_pipeline_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
+
+add_executable(test_centroid rippra/tests/test_centroid.c)
+target_link_libraries(test_centroid PRIVATE ripra)
+add_test(NAME centroid_test COMMAND test_centroid)
+set_tests_properties(centroid_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
+
+add_executable(benchmark_centroid rippra/tests/benchmark_centroid.c)
+target_link_libraries(benchmark_centroid PRIVATE ripra)
+
+add_executable(benchmark_openmp rippra/tests/benchmark_openmp.c)
+target_link_libraries(benchmark_openmp PRIVATE ripra)
+
+if(CMAKE_CUDA_COMPILER)
+    add_executable(test_cuda rippra/tests/test_cuda.c)
+    # Assume it needs some CUDA bindings
+    target_link_libraries(test_cuda PRIVATE ripra)
+endif()

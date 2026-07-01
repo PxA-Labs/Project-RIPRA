@@ -1,100 +1,138 @@
 name: CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-
-  # ─── Linux build + test ─────────────────────────────────
-  linux:
+  # ─── Static Analysis & Linting ─────────────────────────
+  static-analysis:
+    name: Static Analysis (cppcheck)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: rippra
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all --suppress=missingIncludeSystem --inconclusive --error-exitcode=1 rippra/src/ rippra/include/ rippra/tests/
 
+  codeql:
+    name: CodeQL Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+      - name: Configure CMake
+        run: cmake -B build -S .
+      - name: Build
+        run: cmake --build build
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ─── Linux Build + Tests + ASan ─────────────────────────
+  linux:
+    name: Linux Build & Test (ASan/UBSan)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libomp-dev
+          sudo apt-get install -y gcc cmake libomp-dev
 
-      - name: Compile C library
+      - name: Configure CMake with Sanitizers
         run: |
-          mkdir -p build
-          gcc -O2 -fopenmp -c src/io.c -o build/io.o -Iinclude
-          gcc -O2 -fopenmp -c src/la.c -o build/la.o -Iinclude
-          gcc -O2 -fopenmp -c src/centroid.c -o build/centroid.o -Iinclude
-          gcc -O2 -fopenmp -c src/recon.c -o build/recon.o -Iinclude
-          gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
-          ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+          cmake -B build -S . \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O2" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 
-      - name: Build tests
-        run: |
-          gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
-          gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
+      - name: Build
+        run: cmake --build build -j
 
       - name: Generate synthetic test data
+        working-directory: rippra
         run: |
           pip install --quiet numpy
           python ml/synthetic_shwfs.py
 
-      - name: Run integration tests
-        run: |
-          ./build/test_full_pipeline
-          ./build/test_recon
+      - name: Run Tests
+        working-directory: build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1
 
-      - name: Test evaluate_inference (skip gracefully if artifacts missing)
-        run: |
-          pip install --quiet numpy pandas scipy
-          python -c "import os; base = 'ml_checkpoints/local'; print('ML artifacts found — would run evaluate_inference.py') if os.path.exists(base + '/best_mlp.pt') and os.path.exists('data_ai/dataset.npz') else print('SKIP: ML artifacts not found')"
-
-  # ─── Windows (MinGW) build + test ──────────────────────
-  windows:
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: rippra
-
+  # ─── Linux Performance Benchmarks ────────────────────────
+  benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MinGW
-        run: choco install mingw --version=13.2.0 -y --no-progress
+      - name: Install dependencies
+        run: sudo apt-get install -y gcc cmake libomp-dev
 
-      - name: Compile C library
-        run: |
-          if (-not (Test-Path -LiteralPath "build")) { mkdir build }
-          gcc -O2 -c src/io.c -o build/io.o -Iinclude
-          gcc -O2 -c src/la.c -o build/la.o -Iinclude
-          gcc -O2 -c src/centroid.c -o build/centroid.o -Iinclude
-          gcc -O2 -c src/recon.c -o build/recon.o -Iinclude
-          gcc -O2 -c src/rippra_api.c -o build/rippra_api.o -Iinclude
-          ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+      - name: Configure CMake (Release)
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build tests
-        run: |
-          if (-not (Test-Path -LiteralPath "build")) { mkdir build }
-          gcc -O2 tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline.exe
-          gcc -O2 tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon.exe
+      - name: Build Benchmarks
+        run: cmake --build build -j --target benchmark_centroid benchmark_openmp
 
       - name: Generate synthetic test data
+        working-directory: rippra
         run: |
           pip install --quiet numpy
           python ml/synthetic_shwfs.py
 
-      - name: Run integration tests
-        run: |
-          .\build\test_full_pipeline.exe
-          .\build\test_recon.exe
-
-  # ─── Python ML + ONNX tests ───────────────────────────
-  python:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
+      - name: Run Benchmarks
         working-directory: rippra
+        run: |
+          mkdir -p ../benchmark_results
+          ../build/benchmark_centroid | tee ../benchmark_results/centroid.txt
+          ../build/benchmark_openmp | tee ../benchmark_results/openmp.txt
 
+      - name: Upload Benchmark Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-benchmarks
+          path: benchmark_results/
+
+  # ─── Windows (MinGW) build + test ──────────────────────
+  windows:
+    name: Windows Build & Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -S . -G "MinGW Makefiles"
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Generate synthetic test data
+        working-directory: rippra
+        run: |
+          pip install --quiet numpy
+          python ml/synthetic_shwfs.py
+
+      - name: Run Tests
+        working-directory: build
+        run: ctest --output-on-failure
+
+  # ─── Python ML Validation ───────────────────────────
+  python:
+    name: Python ML Reproducibility
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -104,8 +142,27 @@ jobs:
           python-version: '3.10'
 
       - name: Install Python deps
-        run: |
-          pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas torch
+        run: pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas torch
 
       - name: Run complete reproducibility validation
+        working-directory: rippra
         run: python tools/reproduce_all.py
+
+  # ─── CUDA Build ───────────────────────────────────────
+  cuda:
+    name: CUDA Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc cmake libomp-dev
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.14
+
+      - name: Configure CMake
+        run: cmake -B build -S .
+
+      - name: Build CUDA Targets
+        run: cmake --build build -j --target test_cuda
