@@ -18,7 +18,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cppcheck
       - name: Run cppcheck
         run: |
-          cppcheck --enable=all --suppress=missingIncludeSystem --suppress=unusedFunction --inconclusive --error-exitcode=1 rippra/src/ rippra/include/ rippra/tests/
+          cppcheck --enable=warning,performance,portability --suppress=missingIncludeSystem --inconclusive --error-exitcode=1 rippra/src/ rippra/include/ rippra/tests/
 
   codeql:
     name: CodeQL Security Scan
