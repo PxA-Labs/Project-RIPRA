@@ -14,7 +14,7 @@
 [![CUDA](https://img.shields.io/badge/CUDA-12.8-76B900.svg?logo=nvidia)](Dockerfile)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](#ml-pipeline)
 [![Status](https://img.shields.io/badge/status-active--development-orange.svg)](#development-roadmap)
-[![Stars](https://img.shields.io/github/stars/PxA-Labs/Project-RIPRA?style=social)](../../stargazers)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21106033.svg)](https://doi.org/10.5281/zenodo.21106033)
 
 [Quick Start](#quick-start) · [Architecture](#system-architecture) · [Algorithms](#algorithms) · [Benchmarks](#benchmarks) · [Documentation](#documentation) · [Contributing](#contributing)
 
