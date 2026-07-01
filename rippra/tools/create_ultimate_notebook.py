@@ -2,7 +2,7 @@ import json
 import os
 
 def main():
-    notebook_path = "notebook/ripra_simulation_ultimate_testbed.ipynb"
+    notebook_path = "notebook/V2_Simulation_Test.ipynb"
     os.makedirs(os.path.dirname(notebook_path), exist_ok=True)
 
     # Helper to construct code cells
