@@ -22,35 +22,6 @@
 
 ---
 
-> **⚠️ Maintainer note:** This README describes the intended full scope of Project RIPRA. Before merging, confirm every checkbox in the [Repository Structure](#repository-structure) section against the actual `main` branch — some paths (`tools/reproduce_all.py`, `tests/test_full_pipeline.c`, `config/`) are asserted in project documentation but were not independently verified at time of writing. Replace the badge URLs with real ones once a CI workflow and LICENSE file exist.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [System Architecture](#system-architecture)
-- [Processing Pipeline](#processing-pipeline)
-- [Algorithms](#algorithms)
-- [Mathematics](#mathematics)
-- [Repository Structure](#repository-structure)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Examples](#examples)
-- [Visualizations](#visualizations)
-- [Benchmarks](#benchmarks)
-- [Dataset](#dataset)
-- [Research](#research)
-- [Documentation](#documentation)
-- [Testing](#testing)
-- [Development Roadmap](#development-roadmap)
-- [Contributing](#contributing)
-- [Citation](#citation)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
-- [Contact](#contact)
-
----
-
 ## Overview
 
 Atmospheric turbulence distorts an otherwise plane wavefront as it propagates to a telescope aperture. A **Shack-Hartmann Wavefront Sensor (SH-WFS)** samples this distorted wavefront with a microlens array (MLA): each lenslet focuses a sub-aperture of the beam onto a detector, and the displacement of each resulting spot from its calibrated reference position encodes the local wavefront slope. Project RIPRA reconstructs the full wavefront phase map from these spot displacements, characterizes the underlying turbulence statistically, and computes the actuator command map needed to drive a deformable mirror (DM) in a closed adaptive-optics (AO) loop.
@@ -80,39 +51,54 @@ Atmospheric turbulence distorts an otherwise plane wavefront as it propagates to
 
 ## System Architecture
 
+RIPRA is organized into three operational tiers — hardware interface, real-time C engine, and AI/sequence modeling — designed so safety-critical control never blocks on the predictive deep-learning path.
+
 ```mermaid
 flowchart TB
-    subgraph Sensing["Sensing Layer"]
-        A[SH-WFS Camera Frames]
+    subgraph L1["🔧 BOTTOM LAYER — Hardware Interface"]
+        direction LR
+        A1[["📷 Shack-Hartmann<br/>Sensor"]]
+        A2[["🔲 Microlens<br/>Array"]]
+        A3[["🪞 Deformable Mirror<br/>Driver"]]
     end
 
-    subgraph Core["C99 Real-Time Core (librippra)"]
-        B[io.c<br/>Frame I/O]
-        C[centroid.c<br/>Spot Centroiding]
-        D[la.c<br/>Linear Algebra]
-        E[recon.c<br/>Wavefront Reconstruction]
-        F[rippra_api.c<br/>Unified API]
-        G[stream.c<br/>Streaming / Closed-Loop]
+    subgraph L2["⚙️ MIDDLE LAYER — Real-Time C Engine (librippra.a)"]
+        direction LR
+        B1["🎯 TCoG<br/>Centroiding"]
+        B2["🧮 Zonal / SVD<br/>Mesh Solver"]
+        B3["🩹 Dead-Spot<br/>Interpolation"]
+        B4["📐 DM Stroke<br/>Mapper"]
     end
 
-    subgraph ML["Python / PyTorch ML Layer"]
-        H[Zernike Regression<br/>CNN / MLP]
-        I[LSTM Predictor<br/>Loop Lag Compensation]
-        J[ONNX Export<br/>Deployment Runtime]
+    subgraph L3["🧠 TOP LAYER — AI &amp; Sequence Modeling"]
+        direction LR
+        C1["🌀 CNN<br/>Wavefront Solver"]
+        C2["🔮 LSTM<br/>Temporal Predictor"]
+        C3["⚡ ONNX<br/>Runtime"]
     end
 
-    subgraph Output["Control Output"]
-        K[Turbulence Parameters<br/>r0, tau0]
-        L[DM Actuator Command Map]
-    end
+    A1 --> A2 --> B1
+    B1 --> B2 --> B3 --> B4 --> A3
+    B1 -.frame + slope data.-> C1
+    C1 --> C2 --> C3
+    C3 -.accelerated / predictive path.-> B4
 
-    A --> B --> C --> D --> E --> F
-    F --> G --> L
-    C --> H --> J
-    H --> I --> J
-    E --> K
-    J -.optional accelerated path.-> F
+    classDef hw fill:#0F3D5C,stroke:#38BDF8,stroke-width:2px,color:#E0F2FE
+    classDef engine fill:#1E3A2E,stroke:#34D399,stroke-width:2px,color:#D1FAE5
+    classDef ai fill:#3B2A5C,stroke:#C084FC,stroke-width:2px,color:#F3E8FF
+    class A1,A2,A3 hw
+    class B1,B2,B3,B4 engine
+    class C1,C2,C3 ai
+    style L1 fill:#082F49,stroke:#0EA5E9,stroke-width:2px,color:#E0F2FE
+    style L2 fill:#052E20,stroke:#10B981,stroke-width:2px,color:#D1FAE5
+    style L3 fill:#2E1A47,stroke:#A855F7,stroke-width:2px,color:#F3E8FF
 ```
+
+| Layer | Role | Key components |
+|---|---|---|
+| 🔧 Hardware Interface | Manages raw high-frequency sensor data and analog actuator stroke commands | SH-WFS camera, microlens array, DM driver |
+| ⚙️ Real-Time C Engine | Deterministic, low-latency computation — the safety-critical path | `librippra.a`: centroiding, SVD/zonal reconstruction, dead-spot masking, DM mapping |
+| 🧠 AI &amp; Sequence Modeling | Forecasts incoming turbulence and compensates for execution lag | PyTorch CNN/LSTM under ONNX Runtime, decoupled from the hardware loop |
 
 ---
 
@@ -120,16 +106,25 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    A[SH-WFS Frames] --> B[Preprocessing]
-    B --> C[Spot Detection]
-    C --> D[Centroid Detection]
-    D --> E[Spot Displacement]
-    E --> F[Wavefront Reconstruction]
-    F --> G[Zernike Coefficients]
-    G --> H[Turbulence Characterization]
-    F --> I[DM Mapping]
-    I --> J[Closed-loop AO]
-    H -.-> K[(r0, tau0)]
+    A(["📷 SH-WFS<br/>Frames"]) --> B["🧹 Preprocessing"]
+    B --> C["🔎 Spot<br/>Detection"]
+    C --> D["🎯 Centroid<br/>Detection"]
+    D --> E["📏 Spot<br/>Displacement"]
+    E --> F["🌊 Wavefront<br/>Reconstruction"]
+    F --> G["🎛️ Zernike<br/>Coefficients"]
+    G --> H["🌪️ Turbulence<br/>Characterization"]
+    F --> I["🪞 DM<br/>Mapping"]
+    I --> J(["🔁 Closed-loop AO"])
+    H -.-> K[("r0, tau0")]
+
+    classDef sense fill:#0F3D5C,stroke:#38BDF8,stroke-width:2px,color:#E0F2FE
+    classDef process fill:#052E20,stroke:#10B981,stroke-width:2px,color:#D1FAE5
+    classDef recon fill:#3B2A5C,stroke:#C084FC,stroke-width:2px,color:#F3E8FF
+    classDef out fill:#5C2A0F,stroke:#FB923C,stroke-width:2px,color:#FFEDD5
+    class A sense
+    class B,C,D,E process
+    class F,G,H recon
+    class I,J,K out
 ```
 
 | Stage | Purpose | Implementation |
