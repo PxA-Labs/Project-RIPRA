@@ -64,14 +64,14 @@ int main(void) {
     /* Setup zonal mesh */
     rippra_zonal_mesh mesh;
     rc = rippra_zonal_setup(&cal, &cfg, &mesh);
-    if (rc != 0) { printf("ERROR: Zonal setup failed\n"); return 1; }
+    if (rc != 0) { free(cx); free(cy); free(dx); free(dy); printf("ERROR: Zonal setup failed\n"); return 1; }
     
     double *W = (double *)calloc(mesh.nnodes, sizeof(double));
     
     /* Setup modal model */
     rippra_modal_model model;
     rc = rippra_modal_setup(&cal, &cfg, &model);
-    if (rc != 0) { printf("ERROR: Modal setup failed\n"); return 1; }
+    if (rc != 0) { free(cx); free(cy); free(dx); free(dy); free(W); printf("ERROR: Modal setup failed\n"); return 1; }
     
     double *coeffs = (double *)calloc(model.nmodes, sizeof(double));
     
@@ -122,7 +122,7 @@ int main(void) {
     double *dm_cmds = (double *)calloc(mesh.nnodes, sizeof(double));
     t_start = get_time_ms();
     for (int i = 0; i < BENCH_ITERS; ++i) {
-        rippra_dm_map(W, mesh.nnodes, &mesh, &cfg, dm_cmds);
+        rippra_dm_map_impl(W, mesh.nnodes, &mesh, &cfg, dm_cmds);
     }
     double t_dm = (get_time_ms() - t_start) / BENCH_ITERS;
     

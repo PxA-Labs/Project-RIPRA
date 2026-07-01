@@ -67,23 +67,27 @@ int main(void)
     /* 3. save reference centroids + deltas to results for inspection */
     {
         FILE *fp = fopen("results/reference_centroids_c.csv", "w");
-        fprintf(fp, "Spot_ID,ref_cx,ref_cy,col_min,col_max,row_min,row_max\n");
-        for (k = 0; k < cal.nspots; ++k) {
-            fprintf(fp, "%d,%.4f,%.4f,%d,%d,%d,%d\n", k,
-                    cal.subaps[k].ref_cx, cal.subaps[k].ref_cy,
-                    cal.subaps[k].col_min, cal.subaps[k].col_max,
-                    cal.subaps[k].row_min, cal.subaps[k].row_max);
+        if (fp) {
+            fprintf(fp, "Spot_ID,ref_cx,ref_cy,col_min,col_max,row_min,row_max\n");
+            for (k = 0; k < cal.nspots; ++k) {
+                fprintf(fp, "%d,%.4f,%.4f,%d,%d,%d,%d\n", k,
+                        cal.subaps[k].ref_cx, cal.subaps[k].ref_cy,
+                        cal.subaps[k].col_min, cal.subaps[k].col_max,
+                        cal.subaps[k].row_min, cal.subaps[k].row_max);
+            }
+            fclose(fp);
         }
-        fclose(fp);
     }
     {
         FILE *fp = fopen("results/spot_deviations_c.csv", "w");
-        fprintf(fp, "Spot_ID,Delta_X,Delta_Y\n");
-        for (k = 0; k < cal.nspots; ++k)
-            fprintf(fp, "%d,%.6f,%.6f\n", k, dx[k], dy[k]);
-        fclose(fp);
+        if (fp) {
+            fprintf(fp, "Spot_ID,Delta_X,Delta_Y\n");
+            for (k = 0; k < cal.nspots; ++k)
+                fprintf(fp, "%d,%.6f,%.6f\n", k, dx[k], dy[k]);
+            fclose(fp);
+        }
     }
-    printf("\n3. Saved results/reference_centroids_c.csv and spot_deviations_c.csv\n");
+    printf("\n3. Results saved (if results/ directory exists)\n");
 
     printf("\n4. First 8 sub-apertures:\n");
     printf("   %-4s %-9s %-9s %-7s %-7s %-7s %-7s %-7s %-7s\n",
