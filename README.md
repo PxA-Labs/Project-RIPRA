@@ -24,6 +24,8 @@
 
 ## Overview
 
+<img width="709" height="265" alt="image" src="https://github.com/user-attachments/assets/6e98e37f-f18b-4e69-abed-f37f1cf072ab" />
+
 Atmospheric turbulence distorts an otherwise plane wavefront as it propagates to a telescope aperture. A **Shack-Hartmann Wavefront Sensor (SH-WFS)** samples this distorted wavefront with a microlens array (MLA): each lenslet focuses a sub-aperture of the beam onto a detector, and the displacement of each resulting spot from its calibrated reference position encodes the local wavefront slope. Project RIPRA reconstructs the full wavefront phase map from these spot displacements, characterizes the underlying turbulence statistically, and computes the actuator command map needed to drive a deformable mirror (DM) in a closed adaptive-optics (AO) loop.
 
 **Why it exists:** atmospheric coherence times are on the order of milliseconds, so any correction system must detect and correct distortion in well under 10 ms. This project was built to answer that requirement — with a real-time C99 core for the numerically expensive path (centroiding, reconstruction, actuator mapping) and a Python/PyTorch layer for training and benchmarking learned reconstructors and predictive controllers.
