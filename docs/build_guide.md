@@ -38,7 +38,7 @@ Output: `rippra/bin/librippra.a` (static) or `rippra/bin/rippra.dll` (DLL).
 
 ```bash
 build_test_pipeline.bat   # Full integration test
-run_test_pipeline.bat     # Run 23 tests
+run_test_pipeline.bat     # Run 35 tests
 
 build_test_recon.bat      # Reconstruction tests
 run_test_recon.bat
@@ -66,6 +66,12 @@ docker run --gpus all ripra
 
 ## Run
 
+### Unified ML & C Reproducibility Suite
+Verify the entire end-to-end WFS calibration, dataset generation, model training, and simulation checks in a single script:
+```bash
+python tools/reproduce_all.py
+```
+
 ### Full Pipeline
 
 ```bash
@@ -73,7 +79,7 @@ cd rippra
 run_test_pipeline.bat
 ```
 
-Expected output: 23/23 tests passed. Pipeline latency ~0.9 ms.
+Expected output: 35/35 tests passed. Pipeline latency ~0.9 ms.
 
 ### Real-Time Time-Series Generation
 
