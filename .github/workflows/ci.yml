@@ -176,3 +176,36 @@ jobs:
 
       - name: Build (all targets, CUDA if available)
         run: cmake --build build -j
+
+  publish-package:
+    name: Publish Docker Image to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs: [linux, python]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase Repository Name
+        id: string
+        run: |
+          echo "repo_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.string.outputs.repo_name }}:latest
+            ghcr.io/${{ steps.string.outputs.repo_name }}:${{ github.sha }}
