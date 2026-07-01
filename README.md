@@ -436,19 +436,6 @@ Under 1-frame simulated latency, a standard integrator diverges; the LSTM-based 
 
 ---
 
-## Development Roadmap
-
-- [x] C99 real-time centroiding and zonal reconstruction core
-- [x] Zernike modal reconstruction
-- [x] CNN/MLP ML reconstructors with ONNX export
-- [x] LSTM predictive AO for latency compensation
-- [x] Docker/CUDA build environment
-- [ ] Native Windows (MSVC) build support
-- [ ] Hardware-in-the-loop validation with a physical SH-WFS/DM
-- [ ] Documented CI pipeline (`.github/workflows`) with automated benchmark regression checks
-- [ ] Published `docs/` mathematical reference with full derivations
-
----
 
 ## Contributing
 
