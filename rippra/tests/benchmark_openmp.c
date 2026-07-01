@@ -1,27 +1,33 @@
-/*
- * tests/benchmark_openmp.c - Benchmark OpenMP parallel performance
- * Compile with: gcc -fopenmp -O2 -Iinclude tests/benchmark_openmp.c -Lbin -lrippra -lm -o bin/benchmark_openmp.exe
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
-#include <windows.h>
+#include <omp.h>
 
 #include "rippra/io.h"
 #include "rippra/centroid.h"
 #include "rippra/la.h"
 #include "rippra/recon.h"
+#include "rippra/rippra_api.h"
 
 #define WARMUP_ITERS 5
 #define BENCH_ITERS 100
 
+#ifdef _WIN32
+#include <windows.h>
 double get_time_ms() {
     LARGE_INTEGER freq, count;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&count);
     return (double)count.QuadPart * 1000.0 / (double)freq.QuadPart;
 }
+#else
+#include <time.h>
+double get_time_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+#endif
 
 int main(void) {
     rippa_config cfg;

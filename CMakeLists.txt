@@ -13,12 +13,15 @@ if(CMAKE_CUDA_COMPILER)
     add_compile_definitions(HAVE_CUDA)
 endif()
 
-add_library(ripra SHARED
+add_library(ripra
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
 )
 
 target_link_libraries(ripra PUBLIC OpenMP::OpenMP_C)
+if(UNIX)
+  target_link_libraries(ripra PUBLIC m)
+endif()
 target_include_directories(ripra PUBLIC rippra/include/)
 
 # Tests
