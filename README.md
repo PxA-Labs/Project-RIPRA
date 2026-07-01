@@ -31,6 +31,14 @@ The conjugate of this reconstructed wavefront is typically used to generate an a
 
 ---
 
+## System Architecture
+
+RIPRA employs a modular, layered architecture that separates physical hardware inputs, high-speed C-native computations, and predictive deep learning inference loops:
+
+![System Architecture](./visualizations/ripra_system_architecture.png)
+
+---
+
 ## Interactive Jupyter Notebooks
 
 The calculations, rendering, training, and compilation suites detailed in this project are fully interactive and can be executed via the notebooks located in the `notebook/` folder:
@@ -53,12 +61,12 @@ The calculations, rendering, training, and compilation suites detailed in this p
 Below are the key visual outcomes of the physical simulation and closed-loop control loops. 
 
 ### 1. Wavefront Optical Path Difference (OPD) Phase Map
-![Wavefront Telemetry](./simulation_visualization/81_advanced_wavefront_analysis__telemetr.png)
+![Wavefront Telemetry](./visualizations/simulation/81_advanced_wavefront_analysis__telemetr.png)
 * **Description:** Renders the 2D reconstructed phase screen ($W(x,y)$) alongside a 3D elevation map showing peaks (positive phase delay) and valleys (negative phase delay) of the optical aberration.
 * **Impact:** Confirms high-fidelity reconstruction of low-order modes (Tip, Tilt, Defocus) across the circular pupil boundary.
 
 ### 2. Deep Learning Reconstructor Accuracy Benchmarks
-![ML Dashboard](./simulation_visualization/111_model_performance_diagnostics_dashbo.png)
+![ML Dashboard](./visualizations/simulation/111_model_performance_diagnostics_dashbo.png)
 * **Description:** Displays MLP vs. CNN training loss convergence, defocus mode regression accuracy, and mode-by-mode Pearson correlation comparison.
 * **Impact:** The Conv2D CNN reconstructor achieves a test MSE of **$0.001957$** (mean correlation of **$99.97\%$**), representing a **$4.6\times$** accuracy gain over the MLP baseline.
 
@@ -66,6 +74,14 @@ Below are the key visual outcomes of the physical simulation and closed-loop con
 ![Predictive AO](./visualizations/predictive_ao.png)
 * **Description:** Trains an LSTM predictor on historical Zernike sequences. Under 1-frame latency, a standard integrator control loop diverges (green curve), whereas the LSTM predictor (blue curve) remains stable, reducing residual RMS error by $6.6\%$.
 * **Impact:** Prevents loop instability in high-speed optical systems operating under hardware delay.
+
+---
+
+## Control Dashboard Interface
+
+The RIPRA real-time control interface mockup consolidates WFS spot coordinates, the reconstructed 3D wavefront screen, corresponding Deformable Mirror actuator commands, and system telemetry metrics:
+
+![Control Dashboard Mockup](./visualizations/ripra_ui_dashboard_mockup.png)
 
 ---
 
