@@ -86,6 +86,12 @@ int rippra_closed_loop_run_impl(const double *initial_phase, int nnodes,
  */
 double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_config *cfg);
 
+/*
+ * Computes Strehl ratio using Marechal approximation: S = exp(-sigma^2)
+ * where sigma is the spatial phase variance in radians.
+ */
+double rippra_compute_strehl(const double *phase_rad, int nnodes);
+
 #ifdef __cplusplus
 }
 #endif

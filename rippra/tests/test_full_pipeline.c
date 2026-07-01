@@ -28,6 +28,14 @@ static int test_count = 0, pass_count = 0;
     } \
 } while(0)
 
+static int load_raw_array(const char *path, int size, double *out_data) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return -1;
+    size_t read_vals = fread(out_data, sizeof(double), size, fp);
+    fclose(fp);
+    return (read_vals == (size_t)size) ? 0 : -2;
+}
+
 int main(void)
 {
     rippa_config cfg;
@@ -229,6 +237,49 @@ int main(void)
         
         free(cl_dm); free(cl_step); free(cl_run);
         free(residual); free(res2); free(res3);
+    }
+
+    /* ---- Step 9: Ground Truth Validation & Strehl Ratio ---- */
+    if (dx && dy && coeffs && phase && zmesh.nnodes > 0 && nmodes > 0) {
+        double *coeffs_gt = (double*)malloc(nmodes * sizeof(double));
+        double *dx_gt = (double*)malloc(nspots * sizeof(double));
+        double *dy_gt = (double*)malloc(nspots * sizeof(double));
+
+        int gt1 = load_raw_array("data_raw/coeffs_gt.raw", nmodes, coeffs_gt);
+        int gt2 = load_raw_array("data_raw/dx_gt.raw", nspots, dx_gt);
+        int gt3 = load_raw_array("data_raw/dy_gt.raw", nspots, dy_gt);
+
+        TEST(gt1 == 0 && gt2 == 0 && gt3 == 0, "Load ground truth binary validation arrays");
+
+        if (gt1 == 0 && gt2 == 0 && gt3 == 0) {
+            /* 9a. Compute and assert displacement RMSE (pixels) */
+            double d_rmse = 0.0;
+            for (i = 0; i < nspots; i++) {
+                double diff_x = dx[i] - dx_gt[i];
+                double diff_y = dy[i] - dy_gt[i];
+                d_rmse += diff_x * diff_x + diff_y * diff_y;
+            }
+            d_rmse = sqrt(d_rmse / nspots);
+            TEST(d_rmse < 0.25, "Centroid displacement RMSE against ground truth < 0.25 pixels");
+            printf("  Displacement RMSE: %.4f px\n", d_rmse);
+
+            /* 9b. Compute and assert scaled Zernike coefficients RMSE (radians) */
+            double c_rmse = 0.0;
+            for (i = 0; i < nmodes; i++) {
+                double diff_c = coeffs[i] - (coeffs_gt[i] / 56.588);
+                c_rmse += diff_c * diff_c;
+            }
+            c_rmse = sqrt(c_rmse / nmodes);
+            TEST(c_rmse < 0.5, "Reconstruction scaled Zernike coefficients RMSE against ground truth < 0.5 rad");
+            printf("  Scaled Zernike RMSE: %.4f rad\n", c_rmse);
+
+            /* 9c. Compute and print Marechal Strehl Ratio */
+            double strehl = rippra_compute_strehl(phase, zmesh.nnodes);
+            TEST(strehl > 0.0 && strehl <= 1.0, "Strehl ratio is valid in range (0, 1]");
+            printf("  Marechal Strehl Ratio: %.4f (from reconstructed phase)\n", strehl);
+        }
+
+        free(coeffs_gt); free(dx_gt); free(dy_gt);
     }
 
     /* ---- Summary ---- */

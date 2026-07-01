@@ -121,6 +121,17 @@ int rippa_load_bmp(const char *path, int *out_width, int *out_height,
     short bpp = *(short *)(hdr + 28);
     unsigned int comp = *(unsigned int *)(hdr + 30);
 
+    /* Validate offset and image dimensions to protect against buffer issues */
+    if (offset < 54 || offset > 10000000) {
+        fprintf(stderr, "ERROR: invalid BMP offset %d\n", offset);
+        fclose(fp); return -3;
+    }
+    int abs_h = (h < 0) ? -h : h;
+    if (w <= 0 || abs_h == 0 || w > 16384 || abs_h > 16384) {
+        fprintf(stderr, "ERROR: invalid BMP dimensions %dx%d\n", w, h);
+        fclose(fp); return -3;
+    }
+
     if (comp != 0) {
         fprintf(stderr, "ERROR: only uncompressed BMP supported\n");
         fclose(fp); return -3;
@@ -131,7 +142,7 @@ int rippa_load_bmp(const char *path, int *out_width, int *out_height,
     }
 
     int top_down = (h < 0);
-    if (top_down) h = -h;
+    int actual_h = abs_h;
 
     int channels = bpp / 8;
     if (channels < 1) channels = 1;
@@ -143,17 +154,26 @@ int rippa_load_bmp(const char *path, int *out_width, int *out_height,
     unsigned char *rowbuf = (unsigned char *)malloc(stride);
     if (!rowbuf) { fclose(fp); return -2; }
 
-    size_t n = (size_t)w * (size_t)h;
+    size_t n = (size_t)w * (size_t)actual_h;
     *data = (double *)malloc(n * sizeof(double));
     if (!*data) { free(rowbuf); fclose(fp); return -2; }
 
     double maxval = (bpp == 16) ? 65535.0 : 255.0;
 
-    fseek(fp, offset, SEEK_SET);
+    if (fseek(fp, offset, SEEK_SET) != 0) {
+        fprintf(stderr, "ERROR: failed to seek to BMP offset\n");
+        free(rowbuf); free(*data); *data = NULL;
+        fclose(fp); return -3;
+    }
+
     int y;
-    for (y = 0; y < h; ++y) {
-        int destrow = top_down ? y : (h - 1 - y);
-        fread(rowbuf, 1, stride, fp);
+    for (y = 0; y < actual_h; ++y) {
+        int destrow = top_down ? y : (actual_h - 1 - y);
+        if (fread(rowbuf, 1, stride, fp) != (size_t)stride) {
+            fprintf(stderr, "ERROR: truncated/corrupted BMP file during pixel read at row %d\n", y);
+            free(rowbuf); free(*data); *data = NULL;
+            fclose(fp); return -4;
+        }
         int x;
         for (x = 0; x < w; ++x) {
             double val;
@@ -170,7 +190,7 @@ int rippa_load_bmp(const char *path, int *out_width, int *out_height,
     }
 
     *out_width = w;
-    *out_height = h;
+    *out_height = actual_h;
     free(rowbuf);
     fclose(fp);
     return 0;

@@ -145,6 +145,8 @@ RIPRA_API int rippra_closed_loop_run(void *cal,
                                       int *out_iters,
                                       double *out_residual_rms);
 
+RIPRA_API double rippra_strehl_ratio(const double *phase, int nnodes);
+
 #ifdef __cplusplus
 }
 #endif

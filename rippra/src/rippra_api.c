@@ -379,3 +379,8 @@ RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
                                         dm_commands, gain, max_iter, target_rms,
                                         out_iters, out_residual_rms);
 }
+
+RIPRA_API double rippra_strehl_ratio(const double *phase, int nnodes)
+{
+    return rippra_compute_strehl(phase, nnodes);
+}

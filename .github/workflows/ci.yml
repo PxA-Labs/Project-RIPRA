@@ -105,10 +105,7 @@ jobs:
 
       - name: Install Python deps
         run: |
-          pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas
+          pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas torch
 
-      - name: Test ONNX model loading
-        run: python ml/test_onnx_models.py
-
-      - name: Run predictive AO simulation (skips torch if unavailable)
-        run: python ml/predictive_ao.py
+      - name: Run complete reproducibility validation
+        run: python tools/reproduce_all.py

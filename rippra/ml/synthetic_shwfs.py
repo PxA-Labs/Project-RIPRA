@@ -273,9 +273,14 @@ def generate_test_data(out_dir, cfg, seed=42):
 
     # 3. Generate Kolmogorov random coefficients
     coeffs = generate_turbulence_coeffs(nmodes, D_r0=8.0, rng=rng)
+    # Save ground truth coefficients
+    np.asarray(coeffs, dtype=np.float64).tofile(os.path.join(out_dir, 'coeffs_gt.raw'))
 
     # 4. Compute spot shifts
     dx, dy = shifts_from_wavefront(positions, coeffs, flength, camera_pixsize, pupil_radius)
+    # Save ground truth shifts
+    np.asarray(dx, dtype=np.float64).tofile(os.path.join(out_dir, 'dx_gt.raw'))
+    np.asarray(dy, dtype=np.float64).tofile(os.path.join(out_dir, 'dy_gt.raw'))
 
     # 5. Aberrated frame
     shifted = positions.copy()

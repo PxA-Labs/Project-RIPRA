@@ -719,3 +719,17 @@ double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_
     double rms_m = sqrt(sum_sq / nnodes);
     return rms_m / cfg->wavelength;
 }
+
+double rippra_compute_strehl(const double *phase_rad, int nnodes)
+{
+    if (nnodes <= 0) return 0.0;
+    double sum = 0.0, sum2 = 0.0;
+    for (int i = 0; i < nnodes; ++i) {
+        sum += phase_rad[i];
+        sum2 += phase_rad[i] * phase_rad[i];
+    }
+    double mean = sum / nnodes;
+    double var = (sum2 / nnodes) - (mean * mean);
+    if (var < 0.0) var = 0.0;
+    return exp(-var);
+}
