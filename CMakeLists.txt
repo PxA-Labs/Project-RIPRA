@@ -23,6 +23,15 @@ target_include_directories(ripra PUBLIC rippra/include/)
 
 # Tests
 enable_testing()
+
 add_executable(test_recon rippra/tests/test_recon.c)
 target_link_libraries(test_recon PRIVATE ripra)
 add_test(NAME recon_test COMMAND test_recon)
+
+add_executable(test_full_pipeline rippra/tests/test_full_pipeline.c)
+target_link_libraries(test_full_pipeline PRIVATE ripra)
+add_test(NAME full_pipeline_test COMMAND test_full_pipeline)
+
+# Set working directory for tests so they can load system.conf and data files
+set_tests_properties(recon_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
+set_tests_properties(full_pipeline_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")

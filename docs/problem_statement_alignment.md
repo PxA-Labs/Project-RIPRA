@@ -8,12 +8,12 @@ This report evaluates how the implemented **Project RIPRA (ऋप्र)** C pip
 
 | Problem Statement Requirement | Implementation Status | C Function / Module Reference | Notes / Details |
 | :--- | :---: | :--- | :--- |
-| **1. Centroid Detection**<br>Identify the centroid position of each spot in the sub-apertures. | **Compliant** | [`rippa_compute_centroids`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/centroid.c#L325) | Implements local thresholded Center of Gravity (TCoG) for high accuracy. |
-| **2. Spot Deviation**<br>Calculate spot deviation from calibrated reference position. | **Compliant** | [`rippa_compute_deltas`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/centroid.c#L351) | Calculates `dx` and `dy` deviations in pixels. |
-| **3. Wavefront Reconstruction**<br>Fried Geometry arrangement of DM actuator and MLA lenslets. | **Compliant** | [`rippra_zonal_reconstruct`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/recon.c#L182)<br>[`rippra_modal_reconstruct`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/recon.c#L286) | **Zonal**: Places phase nodes at sub-aperture corners (Fried geometry) and solves using truncated SVD.<br>**Modal**: Fits slopes to continuous Zernike derivative integrals. |
-| **4. Turbulence Characterization**<br>Derive Fried parameter ($r_0$) and coherence time ($\tau_0$). | **Compliant** | [`rippra_compute_r0`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/recon.c#L311)<br>[`rippra_compute_tau0`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/recon.c#L348) | **$r_0$**: Derived from temporal slope variance under Kolmogorov theory.<br>**$\tau_0$**: Derived from decay rate of temporal auto-covariance. |
-| **5. DM Actuator Mapping**<br>Derive command strokes with inter-actuator coupling. | **Compliant** | [`rippra_dm_map`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/recon.c#L400) | Computes conjugate map $\mathbf{v} = -\mathbf{C}^{-1}\mathbf{\phi}$ where $\mathbf{C}$ models self, nearest-neighbor, and diagonal coupling. |
-| **6. Real-Time Performance**<br>Speed suitable for corrections faster than 10 ms coherence time. | **Compliant** | Compiled with `-O2`<br>Linear Algebra: [`la.c`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/la.c) | Setup matrices (SVD pseudo-inverses) are pre-computed during calibration, reducing real-time per-frame operations to simple matrix-vector multiplications ($< 1.0\text{ ms}$). |
+| **1. Centroid Detection**<br>Identify the centroid position of each spot in the sub-apertures. | **Compliant** | [`rippa_compute_centroids`](../rippra/src/centroid.c#L325) | Implements local thresholded Center of Gravity (TCoG) for high accuracy. |
+| **2. Spot Deviation**<br>Calculate spot deviation from calibrated reference position. | **Compliant** | [`rippa_compute_deltas`](../rippra/src/centroid.c#L351) | Calculates `dx` and `dy` deviations in pixels. |
+| **3. Wavefront Reconstruction**<br>Fried Geometry arrangement of DM actuator and MLA lenslets. | **Compliant** | [`rippra_zonal_reconstruct`](../rippra/src/recon.c#L182)<br>[`rippra_modal_reconstruct`](../rippra/src/recon.c#L286) | **Zonal**: Places phase nodes at sub-aperture corners (Fried geometry) and solves using truncated SVD.<br>**Modal**: Fits slopes to continuous Zernike derivative integrals. |
+| **4. Turbulence Characterization**<br>Derive Fried parameter ($r_0$) and coherence time ($\tau_0$). | **Compliant** | [`rippra_compute_r0`](../rippra/src/recon.c#L311)<br>[`rippra_compute_tau0`](../rippra/src/recon.c#L348) | **$r_0$**: Derived from temporal slope variance under Kolmogorov theory.<br>**$\tau_0$**: Derived from decay rate of temporal auto-covariance. |
+| **5. DM Actuator Mapping**<br>Derive command strokes with inter-actuator coupling. | **Compliant** | [`rippra_dm_map`](../rippra/src/recon.c#L400) | Computes conjugate map $\mathbf{v} = -\mathbf{C}^{-1}\mathbf{\phi}$ where $\mathbf{C}$ models self, nearest-neighbor, and diagonal coupling. |
+| **6. Real-Time Performance**<br>Speed suitable for corrections faster than 10 ms coherence time. | **Compliant** | Compiled with `-O2`<br>Linear Algebra: [`la.c`](../rippra/src/la.c) | Setup matrices (SVD pseudo-inverses) are pre-computed during calibration, reducing real-time per-frame operations to simple matrix-vector multiplications ($< 1.0\text{ ms}$). |
 
 ---
 
@@ -25,7 +25,7 @@ $$u_k \approx \frac{x_{c,k} - x_{pupil}}{pitch\_px}, \quad v_k \approx \frac{y_{
 Nodes are defined at grid points $(u, v)$ corresponding to these corners, aligning the DM actuator grid with the MLA lenslet grid in a **Fried Geometry** as required.
 
 ### Mathematical Inversion & Piston Removal
-A key requirement for stability is isolating the piston mode (null space of the slope measurement matrix). By using Singular Value Decomposition (SVD) with singular value truncation, our custom [`rippa_pinv`](file:///d:/Project%20RIPRA%20%28%E0%A4%8B%E0%A4%AA%E0%A5%8D%E0%A4%B0%29/rippra/src/la.c#L137) operator successfully drops the piston mode, keeping the output phase centered around a zero mean.
+A key requirement for stability is isolating the piston mode (null space of the slope measurement matrix). By using Singular Value Decomposition (SVD) with singular value truncation, our custom [`rippa_pinv`](../rippra/src/la.c#L137) operator successfully drops the piston mode, keeping the output phase centered around a zero mean.
 
 ### Real-Time Suitability
 Atmospheric turbulence has a coherence time on the order of milliseconds, necessitating corrections faster than $10\text{ ms}$. Our C implementation avoids heavy operations in the hot path:
@@ -128,7 +128,7 @@ Atmospheric turbulence has a coherence time on the order of milliseconds, necess
 | `rippra/src/stream.c` | Real-time streaming pipeline | ✅ 401 lines |
 | `rippra/src/rippra_api.c` | Public C API (18 functions) | ✅ 297 lines |
 | `rippra/include/rippra/*.h` | Headers (centroid, recon, la, io, api, predictive_ao) | ✅ 6 headers |
-| `rippra/tests/test_full_pipeline.c` | 31 integration tests | ✅ 241 lines |
+| `rippra/tests/test_full_pipeline.c` | 35 integration tests | ✅ 241 lines |
 | `rippra/ml/sequence_models.py` | LSTM models (prediction, classification, parameter estimation) | ✅ |
 | `rippra/ml/models.py` | MLP + CNN models | ✅ |
 | `rippra/ml/predictive_ao.py` | Predictive AO training + closed-loop evaluation | ✅ |
@@ -165,4 +165,4 @@ All requirements from the problem statement have been addressed:
 | Predictive AO (LSTM feedforward) | ✅ | +5.5% residual improvement at 1-frame latency |
 | FPGA deployment path | ✅ | VHDL design, resource estimates, 500 kHz target |
 | Documentation | ✅ | Paper (LaTeX), presentation, API reference, build/deploy/FPGA guides |
-| Tests | ✅ | 31 tests, all passing
+| Tests | ✅ | 35 tests, all passing

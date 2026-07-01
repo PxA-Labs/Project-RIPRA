@@ -21,9 +21,10 @@
 - Notebook: `notebook/kaggle_synthetic_shwfs_generator.py` (Kaggle-compatible)
 
 ## C Pipeline with Synthetic Data
-- 31/31 tests pass with totlenses=140
+- 35/35 tests pass with totlenses=140
 - Config defaults in io.c: default_config() sets totlenses=140, rippra_api.c matches
 - Centroid detection: 137 spots detected, realistic shifts
+- Authoritative configuration: The C pipeline compiles using physical settings defined in `rippra/config/system.conf` (e.g. wavelength = 632.8 nm, camera pixel size = 7.4 µm, totlenses = 140). High-level templates or python ML modules use `config/default.yaml`.
 
 ## Key Config Values (must match C defaults exactly)
 - camera_pixsize = 7.4e-6 m

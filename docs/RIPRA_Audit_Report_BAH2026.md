@@ -1,5 +1,8 @@
 # PROJECT RIPRA — Expert Panel Audit Report
 
+> [!WARNING]
+> **SUPERSEDED:** This initial audit report (dated June 28, 2026) has been superseded by the more comprehensive independent audit conducted on July 1, 2026. For the current, authoritative audit status and issue backlog, please refer to [audit/RIPRA_Audit_and_Issue_Backlog.md](audit/RIPRA_Audit_and_Issue_Backlog.md).
+
 **Bharatiya Antariksh Hackathon 2026 — Problem Statement 9**
 Wavefront Reconstruction • Atmospheric Turbulence Characterization • Deformable Mirror Actuator Mapping
 

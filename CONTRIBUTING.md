@@ -11,7 +11,7 @@ Thank you for your interest in contributing to Project RIPRA!
 1. Fork the repository and create your feature branch: `git checkout -b feature/my-new-feature`
 2. Ensure your code passes all tests and memory safety checks (e.g., Valgrind, AddressSanitizer).
 3. Update the `CHANGELOG.md` with your changes.
-4. Submit a Pull Request targeting the `main` branch.
+4. Submit a Pull Request targeting the `main` branch, following the [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md).
 
 ## Issues
-If you encounter a bug or have a feature request, please use the provided GitHub Issue templates to submit your report. Include reproducible steps and logs where applicable.
+If you encounter a bug or have a feature request, please use the provided [Bug Report Template](.github/ISSUE_TEMPLATE/bug_report.md) or [Feature Request Template](.github/ISSUE_TEMPLATE/feature_request.md) to submit your report. Include reproducible steps and logs where applicable.

@@ -26,6 +26,11 @@ Welcome to the documentation directory for **Project RIPRA** (Wavefront Reconstr
 * [Presentation (HTML)](./paper/presentation.html) — Interactive slide deck with keyboard navigation.
 * [Presentation (Markdown)](./paper/presentation.md) — Plain-text version of the slide deck.
 
+### Audits & Backlogs
+* [Independent Audit Backlog](./audit/RIPRA_Audit_and_Issue_Backlog.md) — Comprehensive technical audit, backlog tracker, and remediation status (dated July 1, 2026).
+* [Initial Audit Report](./RIPRA_Audit_Report_BAH2026.md) — First expert panel audit report (dated June 28, 2026, superseded).
+* [Academic Audit Draft (LaTeX)](./audit/Audit.tex) — LaTeX source code of the expert panel audit document.
+
 ### Source Module READMEs
 * [C Library](../rippra/src/README.md) — Core pipeline: centroid, recon, turbulence, DM mapping.
 * [CUDA Kernels](../rippra/cuda/README.md) — GPU acceleration for centroiding and matrix ops.

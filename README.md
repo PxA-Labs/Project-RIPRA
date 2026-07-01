@@ -41,12 +41,12 @@ The calculations, rendering, training, and compilation suites detailed in this p
 Below are the key visual outcomes of the physical simulation and closed-loop control loops. 
 
 ### 1. Wavefront Optical Path Difference (OPD) Phase Map
-![Wavefront Telemetry](./simulation_visualization/81_advanced_wavefront_analysis__telemetr.png)
+![Wavefront Telemetry](./visualizations/simulation/81_advanced_wavefront_analysis__telemetr.png)
 * **Description:** Renders the 2D reconstructed phase screen ($W(x,y)$) alongside a 3D elevation map showing peaks (positive phase delay) and valleys (negative phase delay) of the optical aberration.
 * **Impact:** Confirms high-fidelity reconstruction of low-order modes (Tip, Tilt, Defocus) across the circular pupil boundary.
 
 ### 2. Deep Learning Reconstructor Accuracy Benchmarks
-![ML Dashboard](./simulation_visualization/111_model_performance_diagnostics_dashbo.png)
+![ML Dashboard](./visualizations/simulation/111_model_performance_diagnostics_dashbo.png)
 * **Description:** Displays MLP vs. CNN training loss convergence, defocus mode regression accuracy, and mode-by-mode Pearson correlation comparison.
 * **Impact:** The Conv2D CNN reconstructor achieves a test MSE of **$0.001957$** (mean correlation of **$99.97\%$**), representing a **$4.6\times$** accuracy gain over the MLP baseline.
 
@@ -116,7 +116,7 @@ Open `notebook/kaggle_synthetic_shwfs_generator.ipynb` to customize parameters, 
 ### 4. Unified Reproducibility Sweep
 To verify the entire calibration, dataset generation, MLP model training, and ONNX temporal simulation in a single command, run the unified cross-platform sweep script:
 ```bash
-python tools/reproduce_all.py
+python rippra/tools/reproduce_all.py
 ```
 This script dynamically builds the C assets, runs C calibration, generates a 500-sample Kolmogorov turbulence dataset, trains an MLP reconstructor for 3 epochs, and runs the ONNX validation and predictive AO sequence checks.
 

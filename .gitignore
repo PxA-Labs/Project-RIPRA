@@ -29,8 +29,6 @@ visualizations/*.exe
 visualizations/file_*.png
 visualizations/wavefront_animation.gif
 
-# Generated plots
-*.png
-
 # Scratch / working notes
 scratch/
+rippra/scratch/

@@ -19,6 +19,7 @@
 
 ### C Library
 
+#### Windows (Batch scripts)
 ```bash
 cd rippra
 
@@ -31,8 +32,34 @@ build_dll.bat
 # With OpenMP
 build_openmp.bat
 ```
-
 Output: `rippra/bin/librippra.a` (static) or `rippra/bin/rippra.dll` (DLL).
+
+#### Linux / macOS (GCC manual build)
+```bash
+cd rippra
+mkdir -p build
+
+# Compile objects
+gcc -O2 -fopenmp -c src/io.c -o build/io.o -Iinclude
+gcc -O2 -fopenmp -c src/la.c -o build/la.o -Iinclude
+gcc -O2 -fopenmp -c src/centroid.c -o build/centroid.o -Iinclude
+gcc -O2 -fopenmp -c src/recon.c -o build/recon.o -Iinclude
+gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
+
+# Link static archive
+ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+```
+Output: `rippra/build/librippra.a` (static library).
+
+#### Cross-Platform CMake Build (Recommended)
+From the repository root:
+```bash
+mkdir -p build
+cd build
+cmake ..
+cmake --build .
+```
+Outputs (shared library and test executables) will be located in the build directory.
 
 ### Tests
 
@@ -79,7 +106,7 @@ cd rippra
 run_test_pipeline.bat
 ```
 
-Expected output: 35/35 tests passed. Pipeline latency ~0.9 ms.
+Expected output: 35/35 tests passed. Pipeline latency ~0.76 ms (761 µs).
 
 ### Real-Time Time-Series Generation
 

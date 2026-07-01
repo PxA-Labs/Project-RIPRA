@@ -29,10 +29,10 @@ Real-time SH-WFS processing pipeline implemented in C99 (MinGW GCC).
 
 | Stage | Time |
 |---|---|
-| Fast centroid (merged TCoG) | 0.805 ms |
-| Reconstruction (zonal + modal) | 0.05 ms |
-| DM mapping | 0.05 ms |
-| **Total pipeline** | **~0.9 ms** |
+| Fast centroid (merged TCoG) | $482\,\mu\text{s}$ |
+| Reconstruction (zonal + modal) | $194\,\mu\text{s}$ |
+| DM mapping | $85\,\mu\text{s}$ |
+| **Total pipeline** | **$761\,\mu\text{s}$ (~0.76 ms)** |
 
 ## Dependencies
 

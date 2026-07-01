@@ -35,10 +35,15 @@ This audit does **not** repeat the "critical blockers" from the stale June 28 re
 
 ```
 Project-RIPRA/
-├── Audit.tex, LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, AGENTS.md
+├── LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, AGENTS.md
 ├── CMakeLists.txt, Dockerfile
-├── config/default.yaml
+├── config/
+│   ├── default.yaml
+│   └── README.md
 ├── docs/            (11 markdown files + docs/paper/)
+│   └── audit/
+│       ├── Audit.tex
+│       └── RIPRA_Audit_and_Issue_Backlog.md
 ├── notebook/         (5 Jupyter notebooks, 1.9 MB total)
 ├── rippra/
 │   ├── src/          (7 .c files, ~112 KB)
@@ -46,11 +51,14 @@ Project-RIPRA/
 │   ├── cuda/          (3 .cu kernels + header)
 │   ├── ml/            (16 Python files — training, eval, benchmarking)
 │   ├── tests/         (8 test/benchmark .c files)
-│   ├── bindings/, tools/, viz/, scratch/, onnx_models/
+│   ├── bindings/, tools/, viz/, onnx_models/
 │   └── build*.bat/.sh (9 platform-specific build scripts)
-├── visualizations/    (static HTML/PNG, ~9 MB)
-├── simulation_visualization/ (PNG dashboards)
-└── .github/workflows/ci.yml
+├── visualizations/    (consolidated ML/simulation PNGs & dashboards, ~10 MB)
+├── .editorconfig
+└── .github/
+    ├── workflows/ci.yml
+    ├── ISSUE_TEMPLATE/
+    └── PULL_REQUEST_TEMPLATE.md
 ```
 
 ### Findings
@@ -342,7 +350,7 @@ Below are actionable, copy-paste-ready issues grouped by category. Each is groun
 **C3. chore: move committed visualization binaries out of the source tree**
 - Labels: repository-hygiene, good first issue
 - Priority: Low
-- Background: `visualizations/` and `simulation_visualization/` contain ~10 MB of PNG/GIF/HTML committed directly.
+- Background: `visualizations/` contains ~10 MB of PNG/GIF/HTML committed directly.
 - Problem Statement: Bloats clone size/history; these look like generated artifacts, not source.
 - Proposed Solution: Move to Git LFS, or regenerate via a documented script and publish via GitHub Pages/Releases instead of committing binaries.
 - Acceptance Criteria: [ ] repo size reduced [ ] regeneration script documented [ ] Pages or release-asset publishing configured if these are meant to be user-facing
@@ -358,7 +366,7 @@ Below are actionable, copy-paste-ready issues grouped by category. Each is groun
 - Background: A `scratch/` directory is committed directly under `rippra/`.
 - Problem Statement: Experimental/scratch code in the main tree is confusing for reviewers trying to identify the deliverable surface.
 - Proposed Solution: Move to a separate branch, or `.gitignore` it and document the convention in CONTRIBUTING.md.
-- Acceptance Criteria: [ ] scratch/ removed from main branch tree or clearly marked non-deliverable in README
+- Acceptance Criteria: [x] scratch/ removed from main branch tree
 - References: —
 - Dependencies: none
 - Estimated Difficulty: XS
@@ -509,7 +517,7 @@ Below are actionable, copy-paste-ready issues grouped by category. Each is groun
 - Labels: good first issue, repository-hygiene
 - Priority: Medium
 - Proposed Solution: Add `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml`, and `.github/PULL_REQUEST_TEMPLATE.md`.
-- Acceptance Criteria: [ ] templates added [ ] linked from CONTRIBUTING.md
+- Acceptance Criteria: [x] templates added [x] linked from CONTRIBUTING.md
 - Estimated Difficulty: XS
 - Estimated Time: 1 hour
 
