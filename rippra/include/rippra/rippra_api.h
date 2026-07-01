@@ -14,17 +14,13 @@
 #include <stddef.h>
 
 #ifdef BUILD_RIPRA_DLL
-#  if defined(_WIN32) || defined(_WIN64)
+#  ifdef _WIN32
 #    define RIPRA_API __declspec(dllexport)
 #  else
 #    define RIPRA_API __attribute__((visibility("default")))
 #  endif
 #else
-#  if defined(_WIN32) || defined(_WIN64)
-#    define RIPRA_API __declspec(dllimport)
-#  else
-#    define RIPRA_API
-#  endif
+#  define RIPRA_API
 #endif
 
 #ifdef __cplusplus

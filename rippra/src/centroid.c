@@ -62,7 +62,9 @@ static int connected_components(const unsigned char *bw, int w, int h,
                 if (n_labels >= max_labels - 1) {
                     /* grow (rare) */
                     max_labels *= 2;
-                    parent = (int *)realloc(parent, max_labels * sizeof(int));
+                    int *tmp = (int *)realloc(parent, max_labels * sizeof(int));
+                    if (!tmp) return -1;
+                    parent = tmp;
                     parent[n_labels] = n_labels;
                 }
             } else if (left != 0 && up == 0) {
