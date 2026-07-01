@@ -97,7 +97,7 @@ int main(void)
     ret = rippa_compute_centroids(img_frame, cfg.frame_width, cfg.frame_height, &cal, &cfg, tmp_cx, tmp_cy);
     TEST(ret == 0, "Centroid computation");
     if (ret == 0) {
-        rippa_compute_deltas(tmp_cx, tmp_cy, &cal, nspots, dx, dy);
+        rippa_compute_deltas(tmp_cx, tmp_cy, &cal, nspots, dx, dy, NULL);
         int deltas_ok = 1;
         for (i = 0; i < nspots; i++)
             if (!isfinite(dx[i]) || !isfinite(dy[i])) deltas_ok = 0;

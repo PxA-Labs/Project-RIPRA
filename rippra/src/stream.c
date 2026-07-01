@@ -273,6 +273,50 @@ int rippra_stream_ready(rippra_stream *s)
     return n;
 }
 
+/* Helper for nearest-neighbor spatial interpolation of occluded/lost spot displacements in stream */
+static void stream_interpolate_lost_spots(const double *dx, const double *dy,
+                                          const int *mask, int nspots,
+                                          const rippra_calibration *cal,
+                                          double *out_dx, double *out_dy)
+{
+    int i, j;
+    int has_invalid = 0;
+    for (i = 0; i < nspots; ++i) {
+        if (mask[i] == 0) { has_invalid = 1; break; }
+    }
+    if (!has_invalid) {
+        memcpy(out_dx, dx, nspots * sizeof(double));
+        memcpy(out_dy, dy, nspots * sizeof(double));
+        return;
+    }
+    for (i = 0; i < nspots; ++i) {
+        if (mask[i]) {
+            out_dx[i] = dx[i];
+            out_dy[i] = dy[i];
+        } else {
+            double min_d2 = 1e20;
+            int best_j = -1;
+            for (j = 0; j < nspots; ++j) {
+                if (mask[j]) {
+                    double dist2 = pow(cal->subaps[i].ref_cx - cal->subaps[j].ref_cx, 2) +
+                                   pow(cal->subaps[i].ref_cy - cal->subaps[j].ref_cy, 2);
+                    if (dist2 < min_d2) {
+                        min_d2 = dist2;
+                        best_j = j;
+                    }
+                }
+            }
+            if (best_j != -1) {
+                out_dx[i] = dx[best_j];
+                out_dy[i] = dy[best_j];
+            } else {
+                out_dx[i] = 0.0;
+                out_dy[i] = 0.0;
+            }
+        }
+    }
+}
+
 /* ---- Process (consumer) ------------------------------------------------- */
 int rippra_stream_process(rippra_stream *s)
 {
@@ -305,8 +349,22 @@ int rippra_stream_process(rippra_stream *s)
                             &s->cal, &s->cfg,
                             r->cx, r->cy);
 
-    /* Step 2: deltas */
-    rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy);
+    /* Step 2: deltas and mask interpolation */
+    int *mask = (int*)malloc(nspots * sizeof(int));
+    if (mask) {
+        rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy, mask);
+        double *tmp_dx = (double*)malloc(nspots * sizeof(double));
+        double *tmp_dy = (double*)malloc(nspots * sizeof(double));
+        if (tmp_dx && tmp_dy) {
+            stream_interpolate_lost_spots(r->dx, r->dy, mask, nspots, &s->cal, tmp_dx, tmp_dy);
+            memcpy(r->dx, tmp_dx, nspots * sizeof(double));
+            memcpy(r->dy, tmp_dy, nspots * sizeof(double));
+        }
+        free(tmp_dx); free(tmp_dy);
+        free(mask);
+    } else {
+        rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy, NULL);
+    }
 
     /* Step 3: zonal reconstruction */
     rippra_zonal_reconstruct(&s->mesh, r->dx, r->dy, &s->cfg, r->W);
@@ -336,7 +394,7 @@ int rippra_stream_process(rippra_stream *s)
     }
 
     /* Step 6: DM command map */
-    rippra_dm_map(r->W, s->mesh.nnodes, &s->mesh, &s->cfg, r->dm_commands);
+    rippra_dm_map_impl(r->W, s->mesh.nnodes, &s->mesh, &s->cfg, r->dm_commands);
 
     /* Mark ring entry as processed */
     e->occupied = 0;

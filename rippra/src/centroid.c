@@ -394,7 +394,8 @@ int rippa_compute_centroids(const double *frame, int width, int height,
 
 void rippa_compute_deltas(const double *cx, const double *cy,
                           const rippra_calibration *cal,
-                          int nspots, double *dx, double *dy)
+                          int nspots, double *dx, double *dy,
+                          int *mask)
 {
     int i;
     (void)nspots;
@@ -402,9 +403,11 @@ void rippa_compute_deltas(const double *cx, const double *cy,
         if (isnan(cx[i]) || isnan(cy[i])) {
             dx[i] = 0.0;
             dy[i] = 0.0;
+            if (mask) mask[i] = 0;
         } else {
             dx[i] = cx[i] - cal->subaps[i].ref_cx;
             dy[i] = cy[i] - cal->subaps[i].ref_cy;
+            if (mask) mask[i] = 1;
         }
     }
 }
@@ -454,6 +457,6 @@ int rippa_compute_centroids_refined(const double *frame, int width, int height,
                     &cx_out[k], &cy_out[k], &(double){0.0});
     }
 
-    rippa_compute_deltas(cx_out, cy_out, cal, nspots, dx, dy);
+    rippa_compute_deltas(cx_out, cy_out, cal, nspots, dx, dy, NULL);
     return 0;
 }

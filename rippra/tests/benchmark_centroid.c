@@ -57,7 +57,7 @@ int main(void) {
     double t0 = now_ms();
     for (i = 0; i < N; i++) {
         rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-        rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy);
+        rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy, NULL);
     }
     double t1 = now_ms();
     printf("Centroid (fast): %.3f ms/frame (%d runs)\n", (t1-t0)/N, N);
@@ -78,7 +78,7 @@ int main(void) {
     phase = (double*)malloc(nnodes * sizeof(double));
 
     rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-    rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy);
+    rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy, NULL);
     rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, phase);
 
     double rms_lambda = rippra_wavefront_rms_lambda(phase, nnodes, &cfg);
@@ -88,7 +88,7 @@ int main(void) {
     double *rms_vals = (double*)malloc(N * sizeof(double));
     for (i = 0; i < N; i++) {
         rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-        rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy);
+        rippa_compute_deltas(cx, cy, &cal, nspots, dx, dy, NULL);
         rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, phase);
         rms_vals[i] = rippra_wavefront_rms_lambda(phase, nnodes, &cfg);
     }

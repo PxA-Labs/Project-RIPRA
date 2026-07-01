@@ -50,7 +50,7 @@ int main(void)
     dx = (double *)malloc(cal.nspots * sizeof(double));
     dy = (double *)malloc(cal.nspots * sizeof(double));
     rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy);
+    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
 
     printf("\n2. Centroiding complete on %d sub-apertures\n", cal.nspots);
     printf("   mean |dx| = %.3f px,  mean |dy| = %.3f px\n",

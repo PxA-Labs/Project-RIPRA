@@ -72,7 +72,7 @@ int main(void) {
     /* Warmup */
     for (int i = 0; i < WARMUP_ITERS; ++i) {
         rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-        rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy);
+        rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
         rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, W);
         rippra_modal_reconstruct(&model, dx, dy, &cfg, coeffs);
     }
@@ -87,7 +87,7 @@ int main(void) {
     /* Benchmark deltas + zonal + modal */
     t_start = get_time_ms();
     for (int i = 0; i < BENCH_ITERS; ++i) {
-        rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy);
+        rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
         rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, W);
         rippra_modal_reconstruct(&model, dx, dy, &cfg, coeffs);
     }

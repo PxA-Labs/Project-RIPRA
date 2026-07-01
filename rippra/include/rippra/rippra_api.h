@@ -73,12 +73,14 @@ RIPRA_API void rippra_calibration_ref_centroids(void *cal,
 RIPRA_API int rippra_centroid(void *cal,
                                const double *frame,
                                int width, int height,
-                               double *out_dx, double *out_dy);
+                               double *out_dx, double *out_dy,
+                               int *out_mask);
 
 /* ---- Zonal Reconstruction ---------------------------------------------- */
 RIPRA_API int rippra_reconstruct_zonal(void *cal,
                                         const double *dx,
                                         const double *dy,
+                                        const int *mask,
                                         const rippra_api_config *cfg,
                                         double *out_phase);
 
@@ -86,6 +88,7 @@ RIPRA_API int rippra_reconstruct_zonal(void *cal,
 RIPRA_API int rippra_reconstruct_modal(void *cal,
                                         const double *dx,
                                         const double *dy,
+                                        const int *mask,
                                         const rippra_api_config *cfg,
                                         double *out_coeffs);
 
@@ -95,6 +98,7 @@ RIPRA_API int rippra_process_frame(void *cal,
                                     int width, int height,
                                     const rippra_api_config *cfg,
                                     double *out_dx, double *out_dy,
+                                    int *out_mask,
                                     double *out_coeffs);
 
 /* ---- Turbulence Characterization --------------------------------------- */

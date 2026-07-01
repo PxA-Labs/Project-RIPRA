@@ -56,7 +56,7 @@ int main(void) {
     dy = (double *)malloc(cal.nspots * sizeof(double));
 
     rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy);
+    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
 
     double *W_cpu = (double *)calloc(mesh.nnodes, sizeof(double));
     rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, W_cpu);

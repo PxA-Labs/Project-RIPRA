@@ -58,7 +58,7 @@ int main(void) {
     dy = (double *)malloc(cal.nspots * sizeof(double));
     
     rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
-    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy);
+    rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
     
     /* 2. Zonal Phase Reconstruction (Fried Geometry) */
     printf("\n2. Zonal Reconstruction Setup (Fried Geometry)...\n");

@@ -1,44 +1,14 @@
 /*
  * src/rippra_api.c - Public C API implementation for RIPPA shared library.
- *
- * NOTE: does NOT #include recon.h — rippra_api.h and recon.h declare the
- * same function names with incompatible types (rippra_api_config vs rippa_config,
- * void* vs rippra_zonal_mesh*).  The few recon types/functions needed here
- * are duplicated below so this file compiles cleanly.
  */
 #define BUILD_RIPRA_DLL 1
 #include "rippra/rippra_api.h"
 #include "rippra/io.h"
 #include "rippra/centroid.h"
+#include "rippra/recon.h"
 #include <stdlib.h>
 #include <string.h>
-
-/* ---- recon types duplicated here (see rippra/recon.h) ---- */
-typedef struct {
-    int nnodes;
-    int *node_u, *node_v;
-    double *G, *Gpinv;
-} rippra_zonal_mesh;
-
-typedef struct {
-    int nmodes;
-    int *mode_j, *mode_n, *mode_m;
-    double *Zprime, *Zprime_pinv;
-} rippra_modal_model;
-
-/* ---- recon functions needed internally (suffixed _impl) ---- */
-int rippra_zonal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_zonal_mesh *mesh);
-int rippra_zonal_reconstruct(const rippra_zonal_mesh *mesh, const double *dx, const double *dy, const rippa_config *cfg, double *phase);
-void rippra_zonal_free(rippra_zonal_mesh *mesh);
-int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_modal_model *model);
-int rippra_modal_reconstruct(const rippra_modal_model *model, const double *dx, const double *dy, const rippa_config *cfg, double *coeffs);
-void rippra_modal_free(rippra_modal_model *model);
-double rippra_compute_r0_impl(const double *dx, const double *dy, int nf, int ns, const rippa_config *cfg);
-double rippra_compute_tau0_impl(const double *dx, const double *dy, int nf, int ns, double fr);
-int rippra_dm_map_impl(const double *phase, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd);
-int rippra_dm_apply_impl(const double *cmd, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, const double *in, double *out);
-int rippra_closed_loop_step_impl(const double *ph, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd, double g);
-int rippra_closed_loop_run_impl(const double *ph, int nn, const rippra_zonal_mesh *m, const rippa_config *cfg, double *cmd, double g, int mi, double tr, int *oi, double *or);
+#include <math.h>
 
 #define RIPRA_VERSION "2.0.0"
 
@@ -67,22 +37,22 @@ RIPRA_API const char* rippra_version(void) { return RIPRA_VERSION; }
 RIPRA_API rippra_api_config rippra_default_config(void)
 {
     rippra_api_config c;
-    c.camera_pixsize     = 5.3e-6;
-    c.frame_width        = 640;
-    c.frame_height       = 480;
+    c.camera_pixsize     = 7.4e-6;
+    c.frame_width        = 648;
+    c.frame_height       = 492;
     c.totlenses          = 140;
-    c.flength            = 1e-3;
+    c.flength            = 18e-3;
     c.pitch              = 300e-6;
     c.sa_radius          = 150e-6;
     c.pupil_radius       = 2e-3;
-    c.wavelength         = 635e-9;
-    c.thresh_binary      = 0.5;
-    c.centroid_percent   = 0.3;
-    c.coarse_grid_radius = 3;
+    c.wavelength         = 632.8e-9;
+    c.thresh_binary      = 0.08;
+    c.centroid_percent   = 0.2;
+    c.coarse_grid_radius = 12;
     c.zernike_nmax       = 5;
     c.dm_nact_x          = 12;
     c.dm_nact_y          = 12;
-    c.coupling           = 0.2;
+    c.coupling           = 0.15;
     return c;
 }
 
@@ -158,11 +128,56 @@ RIPRA_API void rippra_calibration_ref_centroids(void *cal_ptr,
     }
 }
 
+/* Helper for nearest-neighbor spatial interpolation of occluded/lost spot displacements */
+static void interpolate_lost_spots(const double *dx, const double *dy,
+                                   const int *mask, int nspots,
+                                   const rippra_calibration *cal,
+                                   double *out_dx, double *out_dy)
+{
+    int i, j;
+    int has_invalid = 0;
+    for (i = 0; i < nspots; ++i) {
+        if (mask[i] == 0) { has_invalid = 1; break; }
+    }
+    if (!has_invalid) {
+        memcpy(out_dx, dx, nspots * sizeof(double));
+        memcpy(out_dy, dy, nspots * sizeof(double));
+        return;
+    }
+    for (i = 0; i < nspots; ++i) {
+        if (mask[i]) {
+            out_dx[i] = dx[i];
+            out_dy[i] = dy[i];
+        } else {
+            double min_d2 = 1e20;
+            int best_j = -1;
+            for (j = 0; j < nspots; ++j) {
+                if (mask[j]) {
+                    double dist2 = pow(cal->subaps[i].ref_cx - cal->subaps[j].ref_cx, 2) +
+                                   pow(cal->subaps[i].ref_cy - cal->subaps[j].ref_cy, 2);
+                    if (dist2 < min_d2) {
+                        min_d2 = dist2;
+                        best_j = j;
+                    }
+                }
+            }
+            if (best_j != -1) {
+                out_dx[i] = dx[best_j];
+                out_dy[i] = dy[best_j];
+            } else {
+                out_dx[i] = 0.0;
+                out_dy[i] = 0.0;
+            }
+        }
+    }
+}
+
 /* ---- Centroiding ------------------------------------------------------- */
 RIPRA_API int rippra_centroid(void *cal_ptr,
                                const double *frame,
                                int width, int height,
-                               double *out_dx, double *out_dy)
+                               double *out_dx, double *out_dy,
+                               int *out_mask)
 {
     api_calibration *cal = (api_calibration*)cal_ptr;
     double *cx = (double*)malloc(cal->base.nspots * sizeof(double));
@@ -170,7 +185,7 @@ RIPRA_API int rippra_centroid(void *cal_ptr,
     if (!cx || !cy) { free(cx); free(cy); return -1; }
     int ret = rippa_compute_centroids(frame, width, height, &cal->base, &cal->cfg, cx, cy);
     if (ret == 0)
-        rippa_compute_deltas(cx, cy, &cal->base, (int)cal->base.nspots, out_dx, out_dy);
+        rippa_compute_deltas(cx, cy, &cal->base, (int)cal->base.nspots, out_dx, out_dy, out_mask);
     free(cx); free(cy);
     return ret;
 }
@@ -178,6 +193,7 @@ RIPRA_API int rippra_centroid(void *cal_ptr,
 /* ---- Zonal ------------------------------------------------------------- */
 RIPRA_API int rippra_reconstruct_zonal(void *cal_ptr,
                                         const double *dx, const double *dy,
+                                        const int *mask,
                                         const rippra_api_config *cfg,
                                         double *out_phase)
 {
@@ -188,12 +204,25 @@ RIPRA_API int rippra_reconstruct_zonal(void *cal_ptr,
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_zonal_reconstruct(&cal->zmesh, dx, dy, &cal->cfg, out_phase);
+    int nspots = cal->base.nspots;
+    double *tmp_dx = (double*)malloc(nspots * sizeof(double));
+    double *tmp_dy = (double*)malloc(nspots * sizeof(double));
+    if (!tmp_dx || !tmp_dy) { free(tmp_dx); free(tmp_dy); return -1; }
+    if (mask) {
+        interpolate_lost_spots(dx, dy, mask, nspots, &cal->base, tmp_dx, tmp_dy);
+    } else {
+        memcpy(tmp_dx, dx, nspots * sizeof(double));
+        memcpy(tmp_dy, dy, nspots * sizeof(double));
+    }
+    int ret = rippra_zonal_reconstruct(&cal->zmesh, tmp_dx, tmp_dy, &cal->cfg, out_phase);
+    free(tmp_dx); free(tmp_dy);
+    return ret;
 }
 
 /* ---- Modal ------------------------------------------------------------- */
 RIPRA_API int rippra_reconstruct_modal(void *cal_ptr,
                                         const double *dx, const double *dy,
+                                        const int *mask,
                                         const rippra_api_config *cfg,
                                         double *out_coeffs)
 {
@@ -204,7 +233,19 @@ RIPRA_API int rippra_reconstruct_modal(void *cal_ptr,
         if (ret != 0) return ret;
         cal->mmodel_ready = 1;
     }
-    return rippra_modal_reconstruct(&cal->mmodel, dx, dy, &cal->cfg, out_coeffs);
+    int nspots = cal->base.nspots;
+    double *tmp_dx = (double*)malloc(nspots * sizeof(double));
+    double *tmp_dy = (double*)malloc(nspots * sizeof(double));
+    if (!tmp_dx || !tmp_dy) { free(tmp_dx); free(tmp_dy); return -1; }
+    if (mask) {
+        interpolate_lost_spots(dx, dy, mask, nspots, &cal->base, tmp_dx, tmp_dy);
+    } else {
+        memcpy(tmp_dx, dx, nspots * sizeof(double));
+        memcpy(tmp_dy, dy, nspots * sizeof(double));
+    }
+    int ret = rippra_modal_reconstruct(&cal->mmodel, tmp_dx, tmp_dy, &cal->cfg, out_coeffs);
+    free(tmp_dx); free(tmp_dy);
+    return ret;
 }
 
 /* ---- Full Pipeline ----------------------------------------------------- */
@@ -213,6 +254,7 @@ RIPRA_API int rippra_process_frame(void *cal_ptr,
                                     int width, int height,
                                     const rippra_api_config *cfg,
                                     double *out_dx, double *out_dy,
+                                    int *out_mask,
                                     double *out_coeffs)
 {
     api_calibration *cal = (api_calibration*)cal_ptr;
@@ -223,14 +265,27 @@ RIPRA_API int rippra_process_frame(void *cal_ptr,
     if (!cx || !cy) { free(cx); free(cy); return -1; }
     int ret = rippa_compute_centroids(frame, width, height, &cal->base, &cal->cfg, cx, cy);
     if (ret != 0) { free(cx); free(cy); return ret; }
-    rippa_compute_deltas(cx, cy, &cal->base, nspots, out_dx, out_dy);
+    rippa_compute_deltas(cx, cy, &cal->base, nspots, out_dx, out_dy, out_mask);
     free(cx); free(cy);
+
+    double *tmp_dx = (double*)malloc(nspots * sizeof(double));
+    double *tmp_dy = (double*)malloc(nspots * sizeof(double));
+    if (!tmp_dx || !tmp_dy) { free(tmp_dx); free(tmp_dy); return -1; }
+    if (out_mask) {
+        interpolate_lost_spots(out_dx, out_dy, out_mask, nspots, &cal->base, tmp_dx, tmp_dy);
+    } else {
+        memcpy(tmp_dx, out_dx, nspots * sizeof(double));
+        memcpy(tmp_dy, out_dy, nspots * sizeof(double));
+    }
+
     if (!cal->mmodel_ready) {
         ret = rippra_modal_setup(&cal->base, &cal->cfg, &cal->mmodel);
-        if (ret != 0) return ret;
+        if (ret != 0) { free(tmp_dx); free(tmp_dy); return ret; }
         cal->mmodel_ready = 1;
     }
-    return rippra_modal_reconstruct(&cal->mmodel, out_dx, out_dy, &cal->cfg, out_coeffs);
+    ret = rippra_modal_reconstruct(&cal->mmodel, tmp_dx, tmp_dy, &cal->cfg, out_coeffs);
+    free(tmp_dx); free(tmp_dy);
+    return ret;
 }
 
 /* ---- Turbulence -------------------------------------------------------- */

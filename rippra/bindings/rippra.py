@@ -103,6 +103,7 @@ class Rippra:
             ctypes.c_int, ctypes.c_int,
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
+            np.ctypeslib.ndpointer(dtype=np.int32, flags='C_CONTIGUOUS'),
         ]
         lib.rippra_centroid.restype = ctypes.c_int
 
@@ -111,6 +112,7 @@ class Rippra:
             ctypes.c_void_p,
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
+            np.ctypeslib.ndpointer(dtype=np.int32, flags='C_CONTIGUOUS'),
             ctypes.POINTER(RippraConfig),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
         ]
@@ -121,6 +123,7 @@ class Rippra:
             ctypes.c_void_p,
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
+            np.ctypeslib.ndpointer(dtype=np.int32, flags='C_CONTIGUOUS'),
             ctypes.POINTER(RippraConfig),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
         ]
@@ -134,6 +137,7 @@ class Rippra:
             ctypes.POINTER(RippraConfig),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
+            np.ctypeslib.ndpointer(dtype=np.int32, flags='C_CONTIGUOUS'),
             np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS'),
         ]
         lib.rippra_process_frame.restype = ctypes.c_int
@@ -202,47 +206,63 @@ class Rippra:
         self._lib.rippra_calibration_ref_centroids(self._cal, cx, cy)
         return cx, cy
 
-    def centroid(self, frame, width, height):
+    def centroid(self, frame, width, height, mask=None):
         f = np.ascontiguousarray(frame, dtype=np.float64)
         dx = np.zeros(self._nspots, dtype=np.float64)
         dy = np.zeros(self._nspots, dtype=np.float64)
-        ret = self._lib.rippra_centroid(self._cal, f, width, height, dx, dy)
+        if mask is None:
+            mask_arr = np.ones(self._nspots, dtype=np.int32)
+        else:
+            mask_arr = np.ascontiguousarray(mask, dtype=np.int32)
+        ret = self._lib.rippra_centroid(self._cal, f, width, height, dx, dy, mask_arr)
         if ret != 0:
             raise RuntimeError(f"rippra_centroid failed with code {ret}")
         return dx, dy
 
-    def reconstruct_zonal(self, dx, dy):
+    def reconstruct_zonal(self, dx, dy, mask=None):
         dx_a = np.ascontiguousarray(dx, dtype=np.float64)
         dy_a = np.ascontiguousarray(dy, dtype=np.float64)
+        if mask is None:
+            mask_arr = np.ones(self._nspots, dtype=np.int32)
+        else:
+            mask_arr = np.ascontiguousarray(mask, dtype=np.int32)
         nnodes = self._nspots  # approx
         phase = np.zeros(nnodes, dtype=np.float64)
         ret = self._lib.rippra_reconstruct_zonal(
-            self._cal, dx_a, dy_a, ctypes.byref(self._cfg), phase)
+            self._cal, dx_a, dy_a, mask_arr, ctypes.byref(self._cfg), phase)
         if ret != 0:
             raise RuntimeError(f"rippra_reconstruct_zonal failed with code {ret}")
         return phase
 
-    def reconstruct_modal(self, dx, dy):
+    def reconstruct_modal(self, dx, dy, mask=None):
         dx_a = np.ascontiguousarray(dx, dtype=np.float64)
         dy_a = np.ascontiguousarray(dy, dtype=np.float64)
+        if mask is None:
+            mask_arr = np.ones(self._nspots, dtype=np.int32)
+        else:
+            mask_arr = np.ascontiguousarray(mask, dtype=np.int32)
         nmodes = (self._cfg.zernike_nmax + 1) * (self._cfg.zernike_nmax + 2) // 2 - 1
         coeffs = np.zeros(nmodes, dtype=np.float64)
         ret = self._lib.rippra_reconstruct_modal(
-            self._cal, dx_a, dy_a, ctypes.byref(self._cfg), coeffs)
+            self._cal, dx_a, dy_a, mask_arr, ctypes.byref(self._cfg), coeffs)
         if ret != 0:
             raise RuntimeError(f"rippra_reconstruct_modal failed with code {ret}")
         return coeffs
 
-    def process_frame(self, frame, width, height):
+    def process_frame(self, frame, width, height, mask=None):
         f = np.ascontiguousarray(frame, dtype=np.float64)
         nspots = self._nspots
         nmodes = (self._cfg.zernike_nmax + 1) * (self._cfg.zernike_nmax + 2) // 2 - 1
         dx = np.zeros(nspots, dtype=np.float64)
         dy = np.zeros(nspots, dtype=np.float64)
+        if mask is None:
+            mask_arr = np.ones(nspots, dtype=np.int32)
+        else:
+            mask_arr = np.ascontiguousarray(mask, dtype=np.int32)
         coeffs = np.zeros(nmodes, dtype=np.float64)
         ret = self._lib.rippra_process_frame(
             self._cal, f, width, height,
-            ctypes.byref(self._cfg), dx, dy, coeffs)
+            ctypes.byref(self._cfg), dx, dy, mask_arr, coeffs)
         if ret != 0:
             raise RuntimeError(f"rippra_process_frame failed with code {ret}")
         return dx, dy, coeffs

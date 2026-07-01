@@ -86,7 +86,8 @@ int rippa_compute_centroids(const double *frame, int width, int height,
  */
 void rippa_compute_deltas(const double *cx, const double *cy,
                           const rippra_calibration *cal,
-                          int nspots, double *dx, double *dy);
+                          int nspots, double *dx, double *dy,
+                          int *mask);
 
 /*
  * Refined (iterative) centroiding: two-pass TCoG.

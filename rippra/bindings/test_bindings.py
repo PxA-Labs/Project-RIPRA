@@ -87,6 +87,24 @@ def main():
     dx2, dy2 = r.centroid(aberrated, w, h)
     print(f"  Centroid only dx match: {np.allclose(dx, dx2)}")
 
+    # Testing dead spot masking and interpolation
+    print("\nTesting dead spot masking and interpolation...")
+    dead_mask = np.ones(nspots, dtype=np.int32)
+    dead_mask[10] = 0  # Simulate spot 10 as dead
+    
+    # We pass the dead mask array to centroiding and reconstruction
+    dx_dead, dy_dead = r.centroid(aberrated, w, h, mask=dead_mask)
+    phase_dead = r.reconstruct_zonal(dx_dead, dy_dead, mask=dead_mask)
+    coeffs_dead = r.reconstruct_modal(dx_dead, dy_dead, mask=dead_mask)
+    
+    print(f"  Dead spot reconstruction successful!")
+    print(f"  Zonal phase shape: {phase_dead.shape}, Modal coeffs shape: {coeffs_dead.shape}")
+    
+    # Assertions
+    assert np.all(np.isfinite(phase_dead)), "Reconstructed zonal phase contains non-finite values"
+    assert np.all(np.isfinite(coeffs_dead)), "Reconstructed modal coefficients contain non-finite values"
+    print("  Dead-spot masking assertions passed!")
+
     # r0 computation (simulated series)
     series_len = 100
     dx_series = np.random.randn(series_len, nspots).ravel()
