@@ -593,7 +593,7 @@ def main():
         "            loss = class_loss_fn(pred, by)\n",
         "            loss.backward()\n",
         "            opt_class.step()\n",
-        "            epoch_loss += loss.item() * len(X_tr)\n",
+        "            epoch_loss += loss.item() * len(bx)\n",
         "        print(f\"  Classifier LSTM Epoch {epoch+1}/5 - Loss: {epoch_loss/len(X_tr):.6f}\")\n",
         "        \n",
         "    # 3. TurbulenceParameterEstimator\n",
