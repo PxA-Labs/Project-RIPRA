@@ -84,6 +84,91 @@ The RIPRA real-time control interface mockup consolidates WFS spot coordinates, 
 ![Control Dashboard Mockup](./visualizations/ripra_ui_dashboard_mockup.png)
 
 ---
+## Installation
+
+<details>
+<summary><b>🐳 Docker (recommended — includes CUDA, GCC, and the full Python ML stack)</b></summary>
+
+```bash
+git clone https://github.com/PxA-Labs/Project-RIPRA.git
+cd Project-RIPRA
+docker build -t rippra:latest .
+docker run --rm -it --gpus all rippra:latest
+```
+
+Run the C reconstructor benchmark directly:
+```bash
+docker run --rm rippra:latest rippra/build_and_test.sh
+```
+</details>
+
+<details>
+<summary><b>🐧 Linux (manual build)</b></summary>
+
+```bash
+cd rippra
+mkdir -p build
+gcc -O2 -fopenmp -c src/io.c -o build/io.o -Iinclude
+gcc -O2 -fopenmp -c src/la.c -o build/la.o -Iinclude
+gcc -O2 -fopenmp -c src/centroid.c -o build/centroid.o -Iinclude
+gcc -O2 -fopenmp -c src/recon.c -o build/recon.o -Iinclude
+gcc -O2 -fopenmp -c src/rippra_api.c -o build/rippra_api.o -Iinclude
+
+ar rcs build/librippra.a build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o
+
+gcc -O2 -fopenmp tests/test_full_pipeline.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_full_pipeline
+gcc -O2 -fopenmp tests/test_recon.c build/io.o build/la.o build/centroid.o build/recon.o build/rippra_api.o -Iinclude -lm -o build/test_recon
+```
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+Use WSL2 with the Linux instructions above, or MSYS2/MinGW-w64 with an equivalent `gcc` toolchain and OpenMP support. Native MSVC build scripts are not yet provided — see [Roadmap](#development-roadmap).
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+Install a real `gcc` (Apple's `clang` shim does not support OpenMP by default) via Homebrew: `brew install gcc libomp`, then follow the Linux build steps, substituting `gcc-13` (or your installed version) for `gcc`.
+</details>
+
+<details>
+<summary><b>🐍 Python / ML environment</b></summary>
+
+```bash
+pip install torch numpy matplotlib pandas scipy onnx onnxruntime
+jupyter notebook
+```
+For GPU-accelerated inference, install `onnxruntime-gpu` instead of `onnxruntime` (requires a CUDA-capable GPU and matching drivers, as used in the Docker image).
+</details>
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/PxA-Labs/Project-RIPRA.git
+cd Project-RIPRA
+
+# 2. Build the C core + tests (see Installation for full flags)
+cd rippra && mkdir -p build && \
+  gcc -O2 -fopenmp -c src/*.c -Iinclude -o build/ && \
+  ar rcs build/librippra.a build/*.o
+
+# 3. Run the verification suite
+./build/test_full_pipeline
+./build/test_recon
+
+# 4. Reproduce the full pipeline end-to-end (build + calibrate + train + validate)
+python rippra/tools/reproduce_all.py
+```
+
+Expect the C tests to report centroiding RMSE < 0.25 px and reconstruction RMSE < 0.5 rad against synthetic ground truth (see [Benchmarks](#benchmarks) for the measured figures).
+
+---
+
 
 ## Real-Time Processing Performance Benchmarks
 
