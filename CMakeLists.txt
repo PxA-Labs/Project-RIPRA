@@ -50,8 +50,8 @@ target_link_libraries(benchmark_centroid PRIVATE ripra)
 add_executable(benchmark_openmp rippra/tests/benchmark_openmp.c)
 target_link_libraries(benchmark_openmp PRIVATE ripra)
 
-if(CMAKE_CUDA_COMPILER)
-    add_executable(test_cuda rippra/tests/test_cuda.c)
-    # Assume it needs some CUDA bindings
-    target_link_libraries(test_cuda PRIVATE ripra)
-endif()
+# CUDA test is disabled until CUDA implementation (cuda/rippra_cuda.h) is completed
+# if(CMAKE_CUDA_COMPILER)
+#     add_executable(test_cuda rippra/tests/test_cuda.c)
+#     target_link_libraries(test_cuda PRIVATE ripra)
+# endif()
