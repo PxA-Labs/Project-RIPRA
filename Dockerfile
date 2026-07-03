@@ -50,9 +50,12 @@ COPY . .
 RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build
 
-# Generate reference centroids and export ONNX models
+# Generate test data, train ML models, and export ONNX
 RUN cd rippra && python3 ml/synthetic_shwfs.py && \
     mkdir -p results && ../build/test_centroid && \
+    python3 tools/generate_dataset.py --samples 500 --out data_ai/dataset.npz --noise 0.1 --seed 42 && \
+    python3 ml/train.py --model mlp --epochs 3 --batch_size 32 --lr 1e-3 --dataset data_ai/dataset.npz --out_dir ml_checkpoints/local && \
+    python3 ml/train.py --model cnn --epochs 3 --batch_size 32 --lr 1e-3 --dataset data_ai/dataset.npz --out_dir ml_checkpoints/local && \
     cd ml && python3 export_onnx.py --output_dir /workspace/rippra/onnx_models && \
     echo "ONNX export complete"
 
