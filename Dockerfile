@@ -52,7 +52,7 @@ RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
 
 # Generate reference centroids and export ONNX models
 RUN cd rippra && python3 ml/synthetic_shwfs.py && \
-    mkdir -p results && ./build/test_centroid && \
+    mkdir -p results && ../build/test_centroid && \
     cd ml && python3 export_onnx.py --output_dir /workspace/rippra/onnx_models && \
     echo "ONNX export complete"
 
