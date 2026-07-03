@@ -25,6 +25,8 @@ __pycache__/
 
 # External references (not project code)
 notebook/*.pdf
+notebook/*.zip
+notebook/*.ipynb
 visualizations/*.exe
 visualizations/file_*.png
 visualizations/wavefront_animation.gif
