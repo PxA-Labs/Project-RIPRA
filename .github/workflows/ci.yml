@@ -13,7 +13,7 @@ jobs:
     name: Static Analysis (cppcheck)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
       - name: Run cppcheck
@@ -26,7 +26,7 @@ jobs:
     permissions:
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -43,7 +43,7 @@ jobs:
     name: Linux Build & Test (ASan/UBSan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -76,7 +76,7 @@ jobs:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: sudo apt-get install -y gcc cmake libomp-dev
@@ -111,7 +111,7 @@ jobs:
     name: Windows Build & Test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure CMake
         run: cmake -B build -S . -G "MinGW Makefiles"
@@ -134,7 +134,7 @@ jobs:
     name: Python ML Reproducibility
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -159,7 +159,7 @@ jobs:
     name: CUDA Build Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y gcc cmake libomp-dev
@@ -186,7 +186,7 @@ jobs:
     needs: [linux, python]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Lowercase Repository Name
         id: string
