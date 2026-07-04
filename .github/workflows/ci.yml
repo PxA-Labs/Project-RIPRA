@@ -101,7 +101,7 @@ jobs:
           ../build/benchmark_openmp | tee ../benchmark_results/openmp.txt
 
       - name: Upload Benchmark Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-benchmarks
           path: benchmark_results/
