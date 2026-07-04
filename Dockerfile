@@ -38,6 +38,7 @@ RUN pip3 install --no-cache-dir \
     matplotlib \
     torch \
     onnx \
+    onnxscript \
     onnxruntime-gpu \
     scipy
 
