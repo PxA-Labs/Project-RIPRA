@@ -25,7 +25,7 @@
 ## Description
 Turbulence in the atmosphere distorts a plane-parallel wavefront propagating through it. A Shack-Hartmann Wavefront Sensor (SH-WFS) samples this distorted wavefront using an array of small lenslets (Microlens Array - MLA). The MLA creates a spot-field on the camera detector, and the spatial deviation of these spots from their reference positions is used to derive the reconstructed wavefront and its associated Zernike coefficients. 
 
-The conjugate of this reconstructed wavefront is typically used to generate an actuator command map (in units of actuator stroke length) which is then fed to a Deformable Mirror (DM) to correct for this distortion in real-time.
+The conjugate of this reconstructed wavefront is typically used to generate an actuator command map (in units of actuator stroke length), which is then fed to a Deformable Mirror (DM) to correct for this distortion in real-time.
 
 ![System Schematic](./visualizations/reference.jpg)
 
