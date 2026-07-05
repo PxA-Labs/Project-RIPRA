@@ -6,6 +6,8 @@
  * turbulence characterization -> DM mapping, and validates all outputs.
  *
  * Run from the rippra/ directory (same as test_recon).
+ *
+ * Also includes BMP config validation regression tests.
  */
 
 #include "rippra/io.h"
@@ -27,6 +29,57 @@ static int test_count = 0, pass_count = 0;
         printf("PASS [%d] %s\n", test_count, msg); \
     } \
 } while(0)
+
+/* Write a minimal valid 24-bit BMP file of given width/height. Returns 0 on success. */
+static int write_test_bmp(const char *path, int w, int h) {
+    FILE *fp = fopen(path, "wb");
+    if (!fp) return -1;
+
+    int rowbytes = w * 3;
+    int stride = (rowbytes + 3) & ~3;
+    int pixel_offset = 54;
+    int file_size = pixel_offset + stride * h;
+
+    /* BMP file header (14 bytes) */
+    unsigned char hdr[14] = {
+        'B', 'M',
+        (unsigned char)(file_size), (unsigned char)(file_size >> 8),
+        (unsigned char)(file_size >> 16), (unsigned char)(file_size >> 24),
+        0, 0, 0, 0,
+        (unsigned char)pixel_offset, (unsigned char)(pixel_offset >> 8),
+        (unsigned char)(pixel_offset >> 16), (unsigned char)(pixel_offset >> 24)
+    };
+    if (fwrite(hdr, 1, 14, fp) != 14) { fclose(fp); return -1; }
+
+    /* DIB header (40 bytes) */
+    unsigned char dib[40] = {
+        40, 0, 0, 0,  /* header size */
+        (unsigned char)w, (unsigned char)(w >> 8), (unsigned char)(w >> 16), (unsigned char)(w >> 24),
+        (unsigned char)h, (unsigned char)(h >> 8), (unsigned char)(h >> 16), (unsigned char)(h >> 24),
+        1, 0,           /* planes */
+        24, 0,          /* bpp */
+        0, 0, 0, 0,     /* compression (BI_RGB) */
+        0, 0, 0, 0,     /* image size (0 for uncompressed) */
+        0, 0, 0, 0,     /* x pixels per meter */
+        0, 0, 0, 0,     /* y pixels per meter */
+        0, 0, 0, 0,     /* colors used */
+        0, 0, 0, 0      /* important colors */
+    };
+    if (fwrite(dib, 1, 40, fp) != 40) { fclose(fp); return -1; }
+
+    /* Pixel data: solid gray rows */
+    unsigned char *row = (unsigned char *)calloc(1, stride);
+    if (!row) { fclose(fp); return -1; }
+    for (int y = 0; y < h; ++y) {
+        memset(row, 128, stride);
+        if (fwrite(row, 1, stride, fp) != (size_t)stride) {
+            free(row); fclose(fp); return -1;
+        }
+    }
+    free(row);
+    fclose(fp);
+    return 0;
+}
 
 static int load_raw_array(const char *path, int size, double *out_data) {
     FILE *fp = fopen(path, "rb");
@@ -56,6 +109,28 @@ int main(void)
     printf("Config: %dx%d, %d lenses, nmax=%d\n",
            cfg.frame_width, cfg.frame_height,
            cfg.totlenses, cfg.zernike_nmax);
+
+    /* ---- Step 0b: BMP config validation ---- */
+    {
+        const char *bmp_test = "build/test_mismatch.bmp";
+        double *bmp_data = NULL;
+
+        if (write_test_bmp(bmp_test, 2, 2) == 0) {
+            rippa_config bogus = cfg;
+            bogus.frame_width = cfg.frame_width + 1;
+            int rc = rippa_load_bmp_with_config(bmp_test, &bogus, &bmp_data);
+            TEST(rc != 0, "BMP config validation rejects mismatched width");
+            if (rc == 0) { free(bmp_data); bmp_data = NULL; }
+
+            /* Non-BMP file rejected */
+            rc = rippa_load_bmp_with_config("config/system.conf", &cfg, &bmp_data);
+            TEST(rc != 0, "BMP config validation rejects non-BMP file");
+
+            remove(bmp_test);
+        } else {
+            printf("  SKIP: could not create test BMP\n");
+        }
+    }
 
     /* ---- Step 1: Load frames ---- */
     ret = rippa_load_raw("data_raw/sh_flat.raw", cfg.frame_width, cfg.frame_height, &flat_frame);
