@@ -5,7 +5,7 @@ PyTorch models for wavefront reconstruction, turbulence prediction, and classifi
 ## Files
 
 | File | Purpose |
-|---|---|
+|---|---|---|
 | `models.py` | Model architectures: `WavefrontMLP`, `WavefrontCNN` (ResNet-style 2D conv) |
 | `sequence_models.py` | LSTM for prediction + classification: `SequencePredictor`, `SequenceClassifier`, `ParameterEstimator` |
 | `train.py` | Training loop for MLP/CNN reconstruction |
@@ -18,6 +18,7 @@ PyTorch models for wavefront reconstruction, turbulence prediction, and classifi
 | `ablation_study.py` | Phase 8.3 — MLP width/depth, LSTM lookback |
 | `performance_profile.py` | Phase 8.4 — 500-iteration latency profiling |
 | `benchmark_gpu.py` | GPU vs CPU throughput benchmark |
+| `benchmark_onnx_latency.py` | ONNX inference latency (mean/median/p99/p999, 10 ms budget check) |
 
 ## Models
 
@@ -72,6 +73,7 @@ This will:
 4. Evaluate model accuracy (test MSE + Pearson correlation vs classical)
 5. Export both models to ONNX format and validate
 6. Run predictive AO simulation
+7. Benchmark ONNX model inference latency (1000 iterations, mean/median/p99/p999)
 
 **CI:** This pipeline runs automatically on every push via the `Python ML Reproducibility` job.
 
@@ -103,6 +105,20 @@ python ml/evaluate_inference.py
 ```
 
 The CI fast config (3 epochs, 500 samples) produces a lower absolute accuracy but validates the pipeline end-to-end. The evaluation step reports test MSE and Pearson correlation, which can be compared against the README targets.
+
+## ONNX Inference Latency
+
+The `benchmark_onnx_latency.py` script loads each ONNX model and measures inference latency over 1000 iterations (100 warmup) using ONNX Runtime. Results are saved to `results/onnx_latency_benchmark.csv`.
+
+Key results (measured on CPU, ONNX Runtime, 1000 iterations):
+
+| Model | Median (ms) | Mean (ms) | p99 (ms) | Within 10 ms Budget? |
+|-------|-------------|-----------|----------|----------------------|
+| MLP   | 0.14        | 0.40      | 4.98     | Yes (C+ML combined ~1.2 ms) |
+| CNN   | 0.10        | 0.11      | 0.28     | Yes (C+ML combined ~0.9 ms) |
+| LSTM  | 0.53        | 1.38      | 7.07     | Yes (C+ML combined ~2.1 ms) |
+
+All three ONNX models fit within the 10 ms real-time budget individually and combined with the C classical hot-path (761 µs). GPU (CUDA) inference is tested automatically when available via `CUDAExecutionProvider` in ONNX Runtime.
 
 ## Checkpoints
 

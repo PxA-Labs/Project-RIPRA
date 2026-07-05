@@ -109,6 +109,10 @@ def main():
     print("\n--- Step 8: Run predictive AO simulation ---")
     run_command([sys.executable, "ml/predictive_ao.py"])
 
+    # 9. Benchmark ONNX model inference latency
+    print("\n--- Step 9: Benchmark ONNX inference latency ---")
+    run_command([sys.executable, "ml/benchmark_onnx_latency.py"])
+
     print("\n=======================================================")
     print("=== All reproducibility steps executed successfully ===")
     print("=======================================================")
