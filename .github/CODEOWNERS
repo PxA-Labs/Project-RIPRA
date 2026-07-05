@@ -1,0 +1,25 @@
+# Global default owners
+* @purvanshjoshi @archittmittal @sr-857
+
+# C library core
+/rippra/src/ @purvanshjoshi @archittmittal @sr-857
+/rippra/include/ @purvanshjoshi @archittmittal @sr-857
+/CMakeLists.txt @purvanshjoshi @archittmittal @sr-857
+
+# CUDA kernels
+/cuda/ @purvanshjoshi @archittmittal @sr-857
+
+# ML pipeline
+/rippra/ml/ @purvanshjoshi @archittmittal @sr-857
+/rippra/tools/ @purvanshjoshi @archittmittal @sr-857
+
+# Tests
+/rippra/tests/ @purvanshjoshi @archittmittal @sr-857
+
+# Documentation
+/docs/ @purvanshjoshi @archittmittal @sr-857
+/README.md @purvanshjoshi @archittmittal @sr-857
+
+# CI/CD
+/.github/ @purvanshjoshi @archittmittal @sr-857
+/Dockerfile @purvanshjoshi @archittmittal @sr-857
