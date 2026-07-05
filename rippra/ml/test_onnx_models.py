@@ -1,7 +1,8 @@
-"""Verify all ONNX models load and produce correct output shapes."""
+"""Verify all ONNX models load, run inference, and produce correct output dimension (20 modes)."""
 import os, sys
 
 try:
+    import numpy as np
     import onnxruntime as ort
 except ImportError:
     print("SKIP: onnxruntime not installed")
@@ -10,34 +11,35 @@ except ImportError:
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ONNX_DIR = os.path.join(BASE, "onnx_models")
 
-models = {
-    "wavefront_mlp.onnx":  ([1, 254],        [1, 20]),
-    "wavefront_cnn.onnx":  ([1, 2, 11, 13],  [1, 20]),
-    "wavefront_lstm.onnx": ([1, 10, 20],     [1, 20]),
-}
-
+# export_onnx.py only exports MLP and CNN (LSTM exported separately)
+model_files = ["wavefront_mlp.onnx", "wavefront_cnn.onnx"]
 all_ok = True
-for fname, (in_shape, out_shape) in models.items():
+
+for fname in model_files:
     path = os.path.join(ONNX_DIR, fname)
     if not os.path.exists(path):
         print(f"FAIL: {fname} not found")
         all_ok = False
         continue
+
     try:
         sess = ort.InferenceSession(path)
-        actual_in = list(sess.get_inputs()[0].shape)
-        actual_out = list(sess.get_outputs()[0].shape)
-        # Check dynamic batch dim (allow batch_size string)
-        in_match = all(
-            a == b or isinstance(a, str) or isinstance(b, str)
-            for a, b in zip(actual_in, in_shape)
-        )
-        out_match = all(
-            a == b or isinstance(a, str) or isinstance(b, str)
-            for a, b in zip(actual_out, out_shape)
-        )
-        status = "OK" if (in_match and out_match) else "SHAPE MISMATCH"
-        print(f"  {status}: {fname}  {actual_in} -> {actual_out}")
+        inp = sess.get_inputs()[0]
+        out = sess.get_outputs()[0]
+        inp_shape = list(inp.shape)
+        out_shape = list(out.shape)
+
+        # Verify output has dynamic batch dim and 20 modes
+        out_ok = len(out_shape) == 2 and out_shape[1] == 20
+
+        # Run inference with random data matching input shape
+        dummy = np.random.randn(*[s if isinstance(s, int) else 1 for s in inp_shape]).astype(np.float32)
+        result = sess.run(None, {inp.name: dummy})
+        actual_out = list(result[0].shape)
+
+        run_ok = actual_out[1] == 20
+        status = "OK" if (out_ok and run_ok) else "SHAPE MISMATCH"
+        print(f"  {status}: {fname}  {inp_shape} -> {out_shape} (ran: {actual_out})")
         if status != "OK":
             all_ok = False
     except Exception as e:

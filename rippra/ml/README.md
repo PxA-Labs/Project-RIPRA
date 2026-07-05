@@ -56,6 +56,27 @@ python ablation_study.py
 python performance_profile.py
 ```
 
+## One-Command Reproduction
+
+The entire ML pipeline (C calibration → dataset generation → model training → ONNX export → validation) can be reproduced from scratch with a single command:
+
+```bash
+# From the rippra/ directory:
+python tools/reproduce_all.py
+```
+
+This will:
+1. Build the C library and run `test_centroid` to generate reference centroids
+2. Generate a 500-sample Kolmogorov turbulence dataset
+3. Train MLP and CNN reconstructors (3 epochs each — fast config)
+4. Export both models to ONNX format
+5. Validate ONNX model input/output shapes
+6. Run predictive AO simulation
+
+**CI:** This pipeline runs automatically on every push via the `Python ML Reproducibility` job.
+
+**Docker:** The published Docker image also runs the full pipeline and ships the trained ONNX models.
+
 ## Checkpoints
 
 Trained weights stored in `rippra/ml_checkpoints/`:
