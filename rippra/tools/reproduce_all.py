@@ -77,12 +77,31 @@ def main():
         "--out_dir", "ml_checkpoints/local"
     ])
 
-    # 4. Run ONNX validation checks
-    print("\n--- Step 4: Validate ONNX models ---")
+    # 4. Train CNN model (3 epochs)
+    print("\n--- Step 4: Train CNN model for 3 epochs ---")
+    run_command([
+        sys.executable, "ml/train.py",
+        "--model", "cnn",
+        "--epochs", "3",
+        "--batch_size", "32",
+        "--lr", "1e-3",
+        "--dataset", "data_ai/dataset.npz",
+        "--out_dir", "ml_checkpoints/local"
+    ])
+
+    # 5. Export to ONNX
+    print("\n--- Step 5: Export trained models to ONNX ---")
+    run_command([
+        sys.executable, "ml/export_onnx.py",
+        "--output_dir", "onnx_models"
+    ])
+
+    # 6. Validate ONNX models
+    print("\n--- Step 6: Validate ONNX models ---")
     run_command([sys.executable, "ml/test_onnx_models.py"])
 
-    # 5. Run Predictive AO evaluation
-    print("\n--- Step 5: Run predictive AO simulation ---")
+    # 7. Run Predictive AO evaluation
+    print("\n--- Step 7: Run predictive AO simulation ---")
     run_command([sys.executable, "ml/predictive_ao.py"])
 
     print("\n=======================================================")

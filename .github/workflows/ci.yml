@@ -142,7 +142,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install Python deps
-        run: pip install --quiet numpy matplotlib scipy onnx onnxruntime pandas torch
+        run: pip install --quiet numpy matplotlib scipy onnx onnxscript onnxruntime pandas torch
 
       - name: Generate synthetic test data
         working-directory: rippra

@@ -10,6 +10,16 @@ Dataset generation and data conversion utilities.
 | `generate_realistic_ts.py` | Physically-realistic time-series from real centroid measurements |
 | `npy_to_raw.py` | Convert .npy files to .raw binary format |
 
+## reproduce_all.py
+
+End-to-end reproducibility pipeline from scratch. Chains C calibration → dataset generation → ML training → ONNX export → validation.
+
+```bash
+python reproduce_all.py
+```
+
+**Requires:** gcc, cmake, Python with numpy/pandas/torch/onnx.
+
 ## generate_dataset.py
 
 Generates training data with:
