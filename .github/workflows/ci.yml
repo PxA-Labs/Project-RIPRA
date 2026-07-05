@@ -85,7 +85,7 @@ jobs:
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
       - name: Build Benchmarks
-        run: cmake --build build -j --target benchmark_centroid benchmark_openmp
+        run: cmake --build build -j --target benchmark_centroid benchmark_openmp benchmark_e2e
 
       - name: Generate synthetic test data
         working-directory: rippra
@@ -99,6 +99,7 @@ jobs:
           mkdir -p ../benchmark_results
           ../build/benchmark_centroid | tee ../benchmark_results/centroid.txt
           ../build/benchmark_openmp | tee ../benchmark_results/openmp.txt
+          ../build/benchmark_e2e | tee ../benchmark_results/e2e.txt
 
       - name: Upload Benchmark Artifacts
         uses: actions/upload-artifact@v7

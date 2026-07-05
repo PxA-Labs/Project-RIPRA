@@ -27,12 +27,16 @@ Real-time SH-WFS processing pipeline implemented in C99 (MinGW GCC).
 
 ## Latency
 
+Hot-path (per-frame compute, excludes one-time I/O):
+
 | Stage | Time |
 |---|---|
 | Fast centroid (merged TCoG) | $482\,\mu\text{s}$ |
 | Reconstruction (zonal + modal) | $194\,\mu\text{s}$ |
 | DM mapping | $85\,\mu\text{s}$ |
-| **Total pipeline** | **$761\,\mu\text{s}$ (~0.76 ms)** |
+| **Hot-path total** | **$761\,\mu\text{s}$ (~0.76 ms)** |
+
+End-to-end (first frame, includes I/O): **$2.26$ ms** (steady-state: $761\,\mu\text{s}$).
 
 ## Dependencies
 

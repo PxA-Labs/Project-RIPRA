@@ -174,12 +174,29 @@ Expect the C tests to report centroiding RMSE < 0.25 px and reconstruction RMSE 
 
 The real-time pipeline executes in sub-milliseconds on standard CPU threads, making it fully qualified for high-frequency ($1\text{ kHz}$) closed-loop control:
 
+> **Note:** The *hot-path* numbers below measure the per-frame compute pipeline only (centroid → reconstruct → DM map), excluding one-time I/O. The *end-to-end* figure includes loading a frame from disk. In a deployed system, frames arrive in-memory from the camera driver, so the hot-path latency is the relevant real-time budget.
+
+### Hot-Path (per-frame compute, no I/O)
+
 | Pipeline Phase | Algorithm | Latency ($\mu\text{s}$) |
 |---|---|---|
 | **Centroiding** | Thresholded Center of Gravity (TCoG) | $482\,\mu\text{s}$ |
 | **Reconstruction** | Fried Geometry Zonal Matrix Solver | $194\,\mu\text{s}$ |
 | **DM Actuator Mapping** | Influence Coupling Matrix multiplication | $85\,\mu\text{s}$ |
-| **Total Latency** | End-to-End Loop | **$761\,\mu\text{s}$** |
+| **Hot-Path Total** | Centroid + Recon + DM | **$761\,\mu\text{s}$** |
+
+### End-to-End (including I/O)
+
+| Metric | Value |
+|---|---|
+| I/O (config + frame load from disk) | $1500\,\mu\text{s}$ (one-time) |
+| Hot-path (per frame) | $761\,\mu\text{s}$ |
+| **End-to-End (first frame)** | **$2.26\,\text{ms}$** |
+| **Steady-state (subsequent frames, cached I/O)** | **$761\,\mu\text{s}$** |
+
+*Measured on GitHub Actions runner (Ubuntu 24.04, 2 vCPU). Results vary by hardware.*
+
+The built-in benchmark (`cmake --build build --target benchmark_e2e && rippra/bin/benchmark_e2e`) reports per-stage breakdown with mean, median, and p99 latency over 30 iterations.
 
 ---
 
