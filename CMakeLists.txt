@@ -50,6 +50,11 @@ target_link_libraries(benchmark_centroid PRIVATE ripra)
 add_executable(benchmark_openmp rippra/tests/benchmark_openmp.c)
 target_link_libraries(benchmark_openmp PRIVATE ripra)
 
+add_executable(benchmark_e2e rippra/tests/benchmark_end_to_end.c)
+target_link_libraries(benchmark_e2e PRIVATE ripra)
+set_target_properties(benchmark_e2e PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra/bin")
+
 # CUDA test is disabled until CUDA implementation (cuda/rippra_cuda.h) is completed
 # if(CMAKE_CUDA_COMPILER)
 #     add_executable(test_cuda rippra/tests/test_cuda.c)
