@@ -150,6 +150,42 @@ int main(void) {
     free(dx_series);
     free(dy_series);
 
+    /* 4b. Degenerate (flat) tau0 test — guard against div-by-zero */
+    {
+        printf("\n4b. Degenerate tau0 (flat autocorrelation)...\n");
+        int nf = 50;
+        double *dx_flat = (double *)calloc(nf * cal.nspots, sizeof(double));
+        double *dy_flat = (double *)calloc(nf * cal.nspots, sizeof(double));
+        /* All zero — perfectly flat autocorrelation, no decay */
+        for (int t = 0; t < nf; ++t) {
+            for (int k = 0; k < cal.nspots; ++k) {
+                dx_flat[t * cal.nspots + k] = 0.0;
+                dy_flat[t * cal.nspots + k] = 0.0;
+            }
+        }
+        double tau0_flat = rippra_compute_tau0_impl(dx_flat, dy_flat, nf, cal.nspots, 1000.0);
+        int flat_ok = isfinite(tau0_flat) && tau0_flat >= 0.0;
+        printf("   tau0 (flat input) = %.4f ms  %s\n",
+               tau0_flat * 1000.0, flat_ok ? "OK" : "FAIL (NaN/inf)");
+        /* Also test with identical (non-zero) values */
+        for (int t = 0; t < nf; ++t) {
+            for (int k = 0; k < cal.nspots; ++k) {
+                dx_flat[t * cal.nspots + k] = 1.0;
+                dy_flat[t * cal.nspots + k] = 1.0;
+            }
+        }
+        double tau0_ident = rippra_compute_tau0_impl(dx_flat, dy_flat, nf, cal.nspots, 1000.0);
+        int ident_ok = isfinite(tau0_ident) && tau0_ident >= 0.0;
+        printf("   tau0 (identical input) = %.4f ms  %s\n",
+               tau0_ident * 1000.0, ident_ok ? "OK" : "FAIL (NaN/inf)");
+        free(dx_flat);
+        free(dy_flat);
+        if (!flat_ok || !ident_ok) {
+            printf("ERROR: tau0 div-by-zero guard FAILED\n");
+            return 1;
+        }
+    }
+
     /* 5. DM Command Mapping */
     printf("\n5. Deformable Mirror Actuator Mapping...\n");
     double *dm_cmds = (double *)calloc(mesh.nnodes, sizeof(double));
