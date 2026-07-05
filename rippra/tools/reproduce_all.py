@@ -97,12 +97,16 @@ def main():
         "--output_dir", "onnx_models"
     ])
 
-    # 6. Validate ONNX models
-    print("\n--- Step 6: Validate ONNX models ---")
+    # 6. Evaluate model accuracy (MSE + correlation vs classical)
+    print("\n--- Step 6: Evaluate model accuracy ---")
+    run_command([sys.executable, "ml/evaluate_inference.py"])
+
+    # 7. Validate ONNX models
+    print("\n--- Step 7: Validate ONNX models ---")
     run_command([sys.executable, "ml/test_onnx_models.py"])
 
-    # 7. Run Predictive AO evaluation
-    print("\n--- Step 7: Run predictive AO simulation ---")
+    # 8. Run Predictive AO evaluation
+    print("\n--- Step 8: Run predictive AO simulation ---")
     run_command([sys.executable, "ml/predictive_ao.py"])
 
     print("\n=======================================================")
