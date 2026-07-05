@@ -71,6 +71,15 @@ int rippa_load_raw(const char *path, int width, int height, double **data);
 int rippa_load_bmp(const char *path, int *out_width, int *out_height,
                    double **data);
 
+/*
+ * Load a BMP with config validation.
+ * Same as rippa_load_bmp, but also validates that the image dimensions
+ * match cfg->frame_width and cfg->frame_height before decoding.
+ * Returns 0 on success, negative on error.
+ */
+int rippa_load_bmp_with_config(const char *path, const rippa_config *cfg,
+                               double **data);
+
 /* ---- raw writer --------------------------------------------------------- */
 
 /*

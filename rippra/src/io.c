@@ -196,6 +196,30 @@ int rippa_load_bmp(const char *path, int *out_width, int *out_height,
     return 0;
 }
 
+/* ---- BMP loader with config validation ---------------------------------- */
+
+int rippa_load_bmp_with_config(const char *path, const rippa_config *cfg,
+                               double **data)
+{
+    int w, h;
+    int ret = rippa_load_bmp(path, &w, &h, data);
+    if (ret != 0) return ret;
+
+    if (w != cfg->frame_width) {
+        fprintf(stderr, "ERROR: BMP width %d does not match config frame_width %d\n",
+                w, cfg->frame_width);
+        free(*data); *data = NULL;
+        return -5;
+    }
+    if (h != cfg->frame_height) {
+        fprintf(stderr, "ERROR: BMP height %d does not match config frame_height %d\n",
+                h, cfg->frame_height);
+        free(*data); *data = NULL;
+        return -5;
+    }
+    return 0;
+}
+
 /* ---- raw writer -------------------------------------------------------- */
 
 int rippa_save_raw(const char *path, const double *data, int width, int height)
