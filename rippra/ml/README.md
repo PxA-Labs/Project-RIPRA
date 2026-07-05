@@ -58,7 +58,7 @@ python performance_profile.py
 
 ## One-Command Reproduction
 
-The entire ML pipeline (C calibration → dataset generation → model training → ONNX export → validation) can be reproduced from scratch with a single command:
+The entire ML pipeline (C calibration → dataset generation → model training → evaluation → ONNX export) can be reproduced from scratch with a single command:
 
 ```bash
 # From the rippra/ directory:
@@ -68,14 +68,41 @@ python tools/reproduce_all.py
 This will:
 1. Build the C library and run `test_centroid` to generate reference centroids
 2. Generate a 500-sample Kolmogorov turbulence dataset
-3. Train MLP and CNN reconstructors (3 epochs each — fast config)
-4. Export both models to ONNX format
-5. Validate ONNX model input/output shapes
+3. Train MLP and CNN reconstructors (3 epochs each — fast config for CI)
+4. Evaluate model accuracy (test MSE + Pearson correlation vs classical)
+5. Export both models to ONNX format and validate
 6. Run predictive AO simulation
 
 **CI:** This pipeline runs automatically on every push via the `Python ML Reproducibility` job.
 
 **Docker:** The published Docker image also runs the full pipeline and ships the trained ONNX models.
+
+## Reproducing README Accuracy Claims
+
+The README reports the following metrics for models trained on a 10,000-sample dataset with 50 epochs:
+
+| Model | Test MSE | Correlation | Latency |
+|-------|----------|-------------|---------|
+| MLP   | 0.752    | —           | 0.67 ms |
+| CNN   | 0.0106   | 99.97%      | 2.26 ms |
+
+To reproduce the exact numbers used in the README, run a full training session:
+
+```bash
+# 1. Calibrate (one-time)
+python tools/generate_dataset.py --samples 10000 --noise 0.1 --out data_ai/dataset.npz
+
+# 2. Train MLP (50 epochs)
+python ml/train.py --model mlp --epochs 50 --batch_size 64 --lr 1e-3 --dataset data_ai/dataset.npz --out_dir ml_checkpoints/full
+
+# 3. Train CNN (50 epochs)
+python ml/train.py --model cnn --epochs 50 --batch_size 64 --lr 1e-3 --dataset data_ai/dataset.npz --out_dir ml_checkpoints/full
+
+# 4. Evaluate
+python ml/evaluate_inference.py
+```
+
+The CI fast config (3 epochs, 500 samples) produces a lower absolute accuracy but validates the pipeline end-to-end. The evaluation step reports test MSE and Pearson correlation, which can be compared against the README targets.
 
 ## Checkpoints
 
