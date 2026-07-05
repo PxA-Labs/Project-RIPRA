@@ -495,7 +495,15 @@ double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series
         /* Interpolate fractional lag */
         double C_prev = C[found_lag - 1];
         double C_curr = C[found_lag];
-        double fraction = (target - C_prev) / (C_curr - C_prev);
+        double denom = C_curr - C_prev;
+        double fraction;
+        double scale = fabs(C_curr) > fabs(C_prev) ? fabs(C_curr) : fabs(C_prev);
+        if (fabs(denom) < 1e-12 * (scale > 1e-12 ? scale : 1.0)) {
+            /* Degenerate/flat autocorrelation — can't interpolate; use midpoint. */
+            fraction = 0.5;
+        } else {
+            fraction = (target - C_prev) / denom;
+        }
         double float_lag = (found_lag - 1) + fraction;
         tau0 = float_lag / frame_rate;
     } else {
