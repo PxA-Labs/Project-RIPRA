@@ -53,6 +53,7 @@ def main():
         print(f"  Compiling calibration tool: {centroid_exe}")
         run_command(f"gcc -std=c99 -Wall -Wextra -D_POSIX_SOURCE -O2 -DNDEBUG -Iinclude tests/test_centroid.c {lib_path} -lm -o {centroid_exe}", shell=True)
         
+    os.makedirs("results", exist_ok=True)
     run_command([centroid_exe])
 
     # 2. Generate a lightweight ML dataset (500 samples)
