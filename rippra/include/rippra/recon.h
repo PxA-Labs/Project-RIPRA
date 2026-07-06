@@ -47,6 +47,12 @@ void rippra_zonal_free(rippra_zonal_mesh *mesh);
 int rippra_zonal_reconstruct(const rippra_zonal_mesh *mesh, const double *dx, const double *dy, const rippa_config *cfg, double *W);
 
 /*
+ * Evaluate analytical Zernike derivatives at (x, y) for a given mode (n, m)
+ * (x, y) are normalized pupil coordinates in [-1, 1]
+ */
+void evaluate_zernike_derivatives(int n, int m, double x, double y, double *dzdx, double *dzdy);
+
+/*
  * Modal reconstruction setup & execution
  */
 int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, rippra_modal_model *model);
