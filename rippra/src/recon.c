@@ -36,7 +36,7 @@ static double zernike_coeff(int n, int m, int s) {
 }
 
 /* Analytical evaluation of Zernike derivatives at (x, y) */
-void evaluate_zernike_derivatives(int n, int m, double x, double y, double *dzdx, double *dzdy) {
+static void evaluate_zernike_derivatives(int n, int m, double x, double y, double *dzdx, double *dzdy) {
     double rho = sqrt(x * x + y * y);
     double theta = atan2(y, x);
     int abs_m = abs(m);
