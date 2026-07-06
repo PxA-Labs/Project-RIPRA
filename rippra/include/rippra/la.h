@@ -58,10 +58,15 @@ int rippa_lusolve(double *A, double *b, size_t n);
  * zeroed (treated as null space). This is what makes the piston mode drop
  * out automatically for the geometry/interaction matrices.
  *
- * Returns 0 on success. Aplus must hold at least m*n doubles.
+ * If cond is non-NULL, the condition number (smax / smin) of the non-truncated
+ * singular values is stored there. If all values are truncated, *cond = 0.
+ *
+ * Returns 0 on success (converged), -1 if SVD did not converge within max
+ * sweeps, -2 on memory allocation failure. Aplus must hold at least m*n
+ * doubles.
  */
 int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
-               double rcond);
+               double rcond, double *cond);
 
 #ifdef __cplusplus
 }

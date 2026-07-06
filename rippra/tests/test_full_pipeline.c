@@ -199,6 +199,7 @@ int main(void)
     ret = rippra_zonal_setup(&cal, &cfg, &zmesh);
     TEST(ret == 0, "Zonal mesh setup");
     if (ret == 0) {
+        printf("  Zonal G cond: %.2f\n", zmesh.cond);
         phase = (double*)malloc(zmesh.nnodes * sizeof(double));
         ret = rippra_zonal_reconstruct(&zmesh, dx, dy, &cfg, phase);
         TEST(ret == 0, "Zonal reconstruction");
@@ -217,6 +218,7 @@ int main(void)
     TEST(ret == 0, "Modal model setup");
     nmodes = mmodel.nmodes;
     if (ret == 0 && nmodes > 0) {
+        printf("  Modal Zprime cond: %.2f\n", mmodel.cond);
         coeffs = (double*)malloc(nmodes * sizeof(double));
         ret = rippra_modal_reconstruct(&mmodel, dx, dy, &cfg, coeffs);
         TEST(ret == 0, "Modal reconstruction");
