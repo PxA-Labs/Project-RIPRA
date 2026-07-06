@@ -70,6 +70,7 @@ int main(void) {
         return 1;
     }
     printf("   Unique phase nodes generated: %d\n", mesh.nnodes);
+    printf("   Condition number of G: %.2f\n", mesh.cond);
     
     double *W = (double *)calloc(mesh.nnodes, sizeof(double));
     rc = rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, W);
@@ -107,6 +108,7 @@ int main(void) {
         printf("ERROR: Modal setup failed (rc=%d)\n", rc);
     } else {
         printf("   Zernike modes to estimate (radial order <= %d): %d\n", cfg.zernike_nmax, model.nmodes);
+        printf("   Condition number of Zprime: %.2f\n", model.cond);
         
         double *coeffs = (double *)calloc(model.nmodes, sizeof(double));
         rc = rippra_modal_reconstruct(&model, dx, dy, &cfg, coeffs);

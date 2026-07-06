@@ -149,16 +149,17 @@ int rippa_lusolve(double *A, double *b, size_t n)
  * We then build A+ = V * diag(1/sigma) * U^T with rcond truncation.
  */
 int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
-               double rcond)
+               double rcond, double *cond)
 {
     const int maxsweeps = 60;
     const double tol = 1e-14;
-    int sweep, p, q, i, ok;
+    int sweep, p, q, i;
     double *W;   /* working copy of A, m x n, mutated to hold U*sigma        */
     double *V;   /* n x n right singular vectors                              */
     double *sig; /* n singular values                                        */
     size_t mn = (size_t)m * (size_t)n;
     size_t nn = (size_t)n * (size_t)n;
+    int converged = 0;
 
     W = (double *)malloc(mn * sizeof(double));
     V = (double *)malloc(nn * sizeof(double));
@@ -209,12 +210,13 @@ int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
                 }
             }
         }
-        if (!off) break; /* converged */
+        if (!off) { converged = 1; break; } /* converged */
     }
 
     /* singular values = column norms of W; scale W down to U */
     {
         double smax = 0.0;
+        double smin = 1e300;
         for (p = 0; p < (int)n; ++p) {
             double nnrm = 0.0;
             for (i = 0; i < (int)m; ++i)
@@ -239,8 +241,14 @@ int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
                 if (sig[p] < thresh) {
                     for (i = 0; i < (int)m; ++i)
                         W[i * n + p] = 0.0;
+                } else if (sig[p] < smin) {
+                    smin = sig[p];
                 }
             }
+        }
+        /* Condition number = smax / smin (0 if all truncated) */
+        if (cond) {
+            *cond = (smax > 0.0 && smin < 1e299) ? smax / smin : 0.0;
         }
     }
 
@@ -249,7 +257,6 @@ int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
      * then A+ (n x m) = Vscaled (n x n) * U^T (n x m).
      * U^T[p][i] = U[i][p] = W[i*n+p].
      */
-    ok = 0;
     {
         double *Vscaled = (double *)malloc(nn * sizeof(double));
         if (!Vscaled) { free(W); free(V); free(sig); return -2; }
@@ -272,5 +279,5 @@ int rippa_pinv(const double *A, double *Aplus, size_t m, size_t n,
     }
 
     free(W); free(V); free(sig);
-    return ok;
+    return converged ? 0 : -1;
 }

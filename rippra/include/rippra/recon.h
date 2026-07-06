@@ -21,6 +21,7 @@ typedef struct rippra_zonal_mesh {
     int *node_v;      /* v-coordinate (row) on the lenslet grid */
     double *G;        /* Geometry matrix, size (2 * nspots) x nnodes, row-major */
     double *Gpinv;    /* Pseudo-inverse of G, size nnodes x (2 * nspots), row-major */
+    double cond;      /* condition number of G (smax/smin of non-truncated singular values) */
 } rippra_zonal_mesh;
 
 /*
@@ -35,6 +36,7 @@ typedef struct rippra_modal_model {
     int *mode_m;      /* Azimuthal order m for each active mode */
     double *Zprime;   /* Zernike derivative matrix, size (2 * nspots) x nmodes, row-major */
     double *Zprime_pinv; /* Pseudo-inverse, size nmodes x (2 * nspots), row-major */
+    double cond;      /* condition number of Zprime (smax/smin of non-truncated singular values) */
 } rippra_modal_model;
 
 /*

@@ -58,8 +58,10 @@ static void test_pinv_identity(void)
 {
     double A[4] = {1,0, 0,1};
     double Ap[4];
-    int rc = rippa_pinv(A, Ap, 2, 2, 1e-12);
+    double cond_id = 0.0;
+    int rc = rippa_pinv(A, Ap, 2, 2, 1e-12, &cond_id);
     check("pinv_id_rc", (double)rc, 0.0, 0.0);
+    check("pinv_id_cond", cond_id, 1.0, 1e-10);
     check("pinv_id_00", Ap[0], 1.0, 1e-10);
     check("pinv_id_01", Ap[1], 0.0, 1e-10);
     check("pinv_id_10", Ap[2], 0.0, 1e-10);
@@ -72,7 +74,8 @@ static void test_pinv_tall(void)
     /* A = [1 0; 0 2; 3 1] */
     double A[6] = {1,0, 0,2, 3,1};
     double Ap[6];  /* 2x3 */
-    int rc = rippa_pinv(A, Ap, 3, 2, 1e-12);
+    double cond_tall = 0.0;
+    int rc = rippa_pinv(A, Ap, 3, 2, 1e-12, &cond_tall);
     check("pinv_tall_rc", (double)rc, 0.0, 0.0);
     /* A * A+ should be 3x3 projection; A+ * A should be 2x2 identity */
     /* Check A+ * A = I (2x2) */
@@ -92,7 +95,8 @@ static void test_pinv_truncated(void)
     /* A = [1 1; 1 1; 0 0] — rank 1, sigma = [2, 0] */
     double A[6] = {1,1, 1,1, 0,0};
     double Ap[6];
-    int rc = rippa_pinv(A, Ap, 3, 2, 1e-6);
+    double cond_trunc = 0.0;
+    int rc = rippa_pinv(A, Ap, 3, 2, 1e-6, &cond_trunc);
     check("pinv_trunc_rc", (double)rc, 0.0, 0.0);
     /* A * A+ * A ≈ A */
     {

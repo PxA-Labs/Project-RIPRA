@@ -243,8 +243,10 @@ int rippra_zonal_setup(const rippra_calibration *cal, const rippa_config *cfg, r
     
     /* Compute pseudo-inverse of G (size 2*nspots x nnodes) -> Gpinv (size nnodes x 2*nspots) */
     /* Singular values below rcond * max_sig are truncated to remove piston */
-    int rc = rippa_pinv(mesh->G, mesh->Gpinv, 2 * nspots, nnodes, 1e-4);
+    double zcond = 0.0;
+    int rc = rippa_pinv(mesh->G, mesh->Gpinv, 2 * nspots, nnodes, 1e-4, &zcond);
     if (rc != 0) return -3;
+    mesh->cond = zcond;
     
     return 0;
 }
@@ -353,8 +355,10 @@ int rippra_modal_setup(const rippra_calibration *cal, const rippa_config *cfg, r
     }
     
     /* Compute pseudo-inverse of Zprime */
-    int rc = rippa_pinv(model->Zprime, model->Zprime_pinv, 2 * nspots, nmodes, 1e-4);
+    double zcond = 0.0;
+    int rc = rippa_pinv(model->Zprime, model->Zprime_pinv, 2 * nspots, nmodes, 1e-4, &zcond);
     if (rc != 0) return -2;
+    model->cond = zcond;
     
     return 0;
 }
