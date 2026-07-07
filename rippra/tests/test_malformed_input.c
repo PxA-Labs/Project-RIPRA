@@ -13,13 +13,15 @@ static void test_check(const char *label, int cond)
     else      { printf("  FAIL %s\n", label); }
 }
 
-/* Write a byte buffer to a temp file, return the path (caller must free) */
-static char *write_temp(const unsigned char *buf, size_t len)
+/* Write raw bytes to a temp file, return the path (caller must free) */
+static char *write_temp(const void *buf, size_t len)
 {
     const char *tmpdir = getenv("TEMP");
     if (!tmpdir) tmpdir = ".";
-    char *path = (char *)malloc(strlen(tmpdir) + 32);
-    sprintf(path, "%s\\ripra_fuzz_%p.tmp", tmpdir, (void *)path);
+    static unsigned long counter = 0;
+    char *path = (char *)malloc(strlen(tmpdir) + 48);
+    if (!path) return NULL;
+    snprintf(path, strlen(tmpdir) + 48, "%s\\ripra_fuzz_%lu.tmp", tmpdir, counter++);
     FILE *fp = fopen(path, "wb");
     if (fp) { fwrite(buf, 1, len, fp); fclose(fp); }
     return path;
@@ -177,7 +179,7 @@ static void test_raw_truncated(void)
     printf("\ntest_raw_truncated:\n");
     /* Write a raw file shorter than expected size */
     double vals[2] = {1.0, 2.0};
-    char *path = write_temp((unsigned char *)vals, 2 * sizeof(double));
+    char *path = write_temp(vals, 2 * sizeof(double));
     if (!path) return;
     double *data = NULL;
     int ret = rippa_load_raw(path, 10, 10, &data);
