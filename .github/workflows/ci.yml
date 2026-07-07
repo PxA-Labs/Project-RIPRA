@@ -95,7 +95,7 @@ jobs:
         run: sudo apt-get install -y gcc cmake libomp-dev
 
       - name: Configure CMake (Release)
-        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DRIPRA_BUILD_BENCHMARKS=ON
 
       - name: Build Benchmarks
         run: cmake --build build -j --target benchmark_centroid benchmark_openmp benchmark_e2e
