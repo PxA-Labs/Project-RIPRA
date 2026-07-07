@@ -2,9 +2,17 @@ Language: Cpp
 BasedOnStyle: LLVM
 IndentWidth: 4
 UseTab: Never
-BreakBeforeBraces: Allman
-AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: false
+  AfterCaseLabel: false
+  AfterEnum: true
+  AfterStruct: true
+  BeforeCatch: false
+  BeforeElse: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Always
 AllowShortLoopsOnASingleLine: false
 ColumnLimit: 100
 PointerAlignment: Right
