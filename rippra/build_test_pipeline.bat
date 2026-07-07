@@ -32,6 +32,9 @@ if errorlevel 1 exit /b 1
 gcc %CFLAGS% -Iinclude -c tests\test_closed_loop.c -o build\test_closed_loop.o
 if errorlevel 1 exit /b 1
 
+gcc %CFLAGS% -Iinclude -c tests\test_malformed_input.c -o build\test_malformed_input.o
+if errorlevel 1 exit /b 1
+
 echo Linking...
 gcc -o build\test_full_pipeline.exe build\test_full_pipeline.o build\io.o build\la.o build\centroid.o build\recon.o build\rippra_api.o -lm
 if errorlevel 1 exit /b 1
@@ -42,5 +45,8 @@ if errorlevel 1 exit /b 1
 gcc -o build\test_closed_loop.exe build\test_closed_loop.o build\io.o build\la.o build\centroid.o build\recon.o build\rippra_api.o -lm
 if errorlevel 1 exit /b 1
 
+gcc -o build\test_malformed_input.exe build\test_malformed_input.o build\io.o build\la.o build\centroid.o build\recon.o build\rippra_api.o -lm
+if errorlevel 1 exit /b 1
+
 echo.
-echo === Build successful: build\test_full_pipeline.exe, build\test_golden_values.exe, build\test_closed_loop.exe ===
+echo === Build successful: build\test_full_pipeline.exe, build\test_golden_values.exe, build\test_closed_loop.exe, build\test_malformed_input.exe ===
