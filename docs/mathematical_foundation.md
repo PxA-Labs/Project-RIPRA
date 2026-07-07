@@ -37,7 +37,7 @@ Where:
 
 ---
 
-## 4. Zernike Polynomials (Noll Indexing)
+## 4. Zernike Polynomials (Noll Indexing) [1]
 Modal wavefront sensing models the phase screen $W(\rho, \theta)$ as a linear combination of orthonormal basis functions:
 
 $$Z_j(\rho, \theta) = N_n^m R_n^{|m|}(\rho) \cdot \begin{cases} \cos(|m|\theta) & \text{for } m \ge 0 \\ \sin(|m|\theta) & \text{for } m < 0 \end{cases}$$
@@ -51,7 +51,7 @@ Where:
 
 ---
 
-## 5. Southwell Area Integration Matrix ($Z'$)
+## 5. Southwell Area Integration Matrix ($Z'$) [3]
 To map discrete slopes to continuous Zernike coefficients, we integrate the Zernike derivatives over the circular area of each sub-aperture lenslet $sa_k$:
 
 $$Z'_{k, j} = \frac{R_p}{\pi R_{sa}^2} \iint_{sa_k} \nabla Z_j(x, y) \, dx \, dy$$
@@ -73,3 +73,21 @@ $$S \approx \exp(-\sigma_\phi^2)$$
 Where:
 * $\sigma_\phi^2 = \text{var}(\phi) = \langle \phi^2 \rangle - \langle \phi \rangle^2$ is the spatial variance of the reconstructed phase screen in radians.
 * $S = 1.0$ represents a diffraction-limited, aberration-free optical system.
+
+---
+
+## References
+
+1. **Noll, R. J.** (1976). Zernike polynomials and atmospheric turbulence. *Journal of the Optical Society of America*, 66(3), 207–211. — Zernike polynomial indexing, turbulence phase covariance, and the Noll covariance matrix used in modal reconstruction.
+
+2. **Fried, D. L.** (1965). Statistics of a Geometric Representation of Wavefront Distortion. *Journal of the Optical Society of America*, 55(11), 1427–1435. — Introduction of the Fried parameter $r_0$ and the Fried geometry for wavefront sensing.
+
+3. **Southwell, W. H.** (1980). Wave-front estimation from wave-front slope measurements. *Journal of the Optical Society of America*, 70(8), 998–1006. — Comparison of zonal reconstruction geometries and the matrix formulation adopted in this implementation.
+
+4. **Roddier, F.** (1981). The effects of atmospheric turbulence in optical astronomy. *Progress in Optics*, 19, 281–376. — Comprehensive treatment of atmospheric turbulence, spatial coherence, and temporal statistics.
+
+5. **Hardy, J. W.** (1998). *Adaptive Optics for Astronomical Telescopes*. Oxford University Press. — Foundational textbook covering SHWFS operation, closed-loop control, and system engineering.
+
+6. **Tyson, R. K.** (2015). *Principles of Adaptive Optics* (4th ed.). CRC Press. — Modern reference for adaptive optics system design, wavefront reconstruction algorithms, and performance analysis.
+
+7. **Fried, D. L.** (1966). Optical Resolution Through a Randomly Inhomogeneous Medium for Very Long and Very Short Exposures. *Journal of the Optical Society of America*, 56(10), 1372–1379. — Theoretical foundation for long-exposure and short-exposure resolution limits through turbulence.
