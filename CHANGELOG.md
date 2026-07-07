@@ -10,6 +10,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 ## [Unreleased]
 
 ### Documentation
+- add architecture diagram, API worked example, and auto-changelog (closes #38, #39, #41) ([#75](https://github.com/PxA-Labs/Project-RIPRA/pull/75))
 - Add architecture diagram (Mermaid data-flow) to README ([#38](https://github.com/PxA-Labs/Project-RIPRA/issues/38))
 - Refresh CHANGELOG.md with backfilled entries; auto-update on PR merge ([#39](https://github.com/PxA-Labs/Project-RIPRA/issues/39))
 - Add API reference worked example with compilable doc_example.c ([#41](https://github.com/PxA-Labs/Project-RIPRA/issues/41))
