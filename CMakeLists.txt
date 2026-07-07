@@ -65,6 +65,7 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_stream         rippra/tests/test_stream.c)
   ripra_add_test(test_io             rippra/tests/test_io.c)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
+  ripra_add_test(doc_example         rippra/tests/doc_example.c)
 
   # CUDA test disabled until cuda/rippra_cuda.h implementation is complete
   # if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")

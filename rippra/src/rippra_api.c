@@ -117,6 +117,17 @@ RIPRA_API void rippra_calibration_free(void *cal_ptr)
 RIPRA_API int  rippra_calibration_nspots(void *cal_ptr)
     { return (int)((api_calibration*)cal_ptr)->base.nspots; }
 
+RIPRA_API int  rippra_calibration_nnodes(void *cal_ptr)
+{
+    api_calibration *cal = (api_calibration*)cal_ptr;
+    if (!cal->zmesh_ready) {
+        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
+        if (ret != 0) return ret;
+        cal->zmesh_ready = 1;
+    }
+    return cal->zmesh.nnodes;
+}
+
 RIPRA_API void rippra_calibration_ref_centroids(void *cal_ptr,
                                                   double *out_cx, double *out_cy)
 {

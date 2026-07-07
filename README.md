@@ -35,6 +35,34 @@ The conjugate of this reconstructed wavefront is typically used to generate an a
 
 RIPRA employs a modular, layered architecture that separates physical hardware inputs, high-speed C-native computations, and predictive deep learning inference loops:
 
+```mermaid
+flowchart LR
+    CAM[Camera / SHWFS] -->|Raw frame| FB[Frame Buffer]
+    FB -->|Flat frame| CAL[Calibration<br/>io.c]
+    FB -->|Aberrated frame| CEN[Centroiding<br/>centroid.c]
+    CAL -->|Spot grid| CEN
+    CEN -->|Displacements dx, dy| ZON[Zonal Recon<br/>recon.c]
+    CEN -->|Displacements dx, dy| MOD[Modal Recon<br/>recon.c]
+    ZON -->|Phase map| DM[DM Mapping<br/>recon.c]
+    MOD -->|Zernike coeffs| TC[Turbulence Char<br/>recon.c]
+    DM -->|Actuator commands| HDM[Deformable Mirror]
+    DM -->|Commands| CL[Closed-Loop<br/>rippra_api.c]
+    TC -->|r₀, τ₀| CL
+    HDM -->|Corrected wavefront| CAM
+    CL -->|Residual| HDM
+
+    style CAM fill:#1a1a2e,stroke:#e94560,color:#eee
+    style CAL fill:#16213e,stroke:#0f3460,color:#eee
+    style CEN fill:#16213e,stroke:#0f3460,color:#eee
+    style ZON fill:#16213e,stroke:#0f3460,color:#eee
+    style MOD fill:#16213e,stroke:#0f3460,color:#eee
+    style DM fill:#16213e,stroke:#0f3460,color:#eee
+    style TC fill:#16213e,stroke:#0f3460,color:#eee
+    style CL fill:#16213e,stroke:#0f3460,color:#eee
+    style HDM fill:#1a1a2e,stroke:#e94560,color:#eee
+    style FB fill:#16213e,stroke:#0f3460,color:#eee
+```
+
 ![System Architecture](./visualizations/ripra_system_architecture.png)
 
 ---

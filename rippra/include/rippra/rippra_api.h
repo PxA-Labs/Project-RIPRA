@@ -61,6 +61,7 @@ RIPRA_API void* rippra_calibrate(const double *flat_frame,
 RIPRA_API void rippra_calibration_free(void *cal);
 
 RIPRA_API int  rippra_calibration_nspots(void *cal);
+RIPRA_API int  rippra_calibration_nnodes(void *cal);
 RIPRA_API void rippra_calibration_ref_centroids(void *cal,
                                                   double *out_cx,
                                                   double *out_cy);
