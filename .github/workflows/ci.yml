@@ -20,6 +20,27 @@ jobs:
         run: |
           cppcheck --enable=warning,performance,portability --suppress=missingIncludeSystem --inconclusive --error-exitcode=1 rippra/src/ rippra/include/ rippra/tests/
 
+  # ─── Formatting Check ────────────────────────────────
+  formatting:
+    name: Code Formatting (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          # Check only .c/.h files changed in this PR against the base branch.
+          # Full codebase reformat is a separate follow-up.
+          BASE="${GITHUB_BASE_REF:-main}"
+          git fetch origin "$BASE" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/$BASE...HEAD" -- '*.c' '*.h' 2>/dev/null || echo "")
+          if [ -z "$CHANGED" ]; then
+            echo "No C/H files changed relative to $BASE."
+          else
+            echo "$CHANGED" | xargs clang-format --dry-run --Werror
+          fi
+
   codeql:
     name: CodeQL Security Scan
     runs-on: ubuntu-latest
@@ -82,7 +103,7 @@ jobs:
         run: sudo apt-get install -y gcc cmake libomp-dev
 
       - name: Configure CMake (Release)
-        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DRIPRA_BUILD_BENCHMARKS=ON
 
       - name: Build Benchmarks
         run: cmake --build build -j --target benchmark_centroid benchmark_openmp benchmark_e2e

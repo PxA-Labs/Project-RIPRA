@@ -1,77 +1,87 @@
 cmake_minimum_required(VERSION 3.18)
 project(RIPRA LANGUAGES C)
 
-# Find necessary packages
+# Linear algebra: la.c is a vendored, dependency-free implementation providing
+# LU decomposition (Doolittle with partial pivoting) and pseudo-inverse via
+# one-sided Jacobi SVD. No BLAS/LAPACK is required or used. See rippra/src/la.c
+# for design notes.
+
+# ---- Options ---------------------------------------------------------------
+option(RIPRA_BUILD_SHARED      "Build shared library (DLL/SO)" OFF)
+option(RIPRA_BUILD_TESTS       "Build test executables"       ON)
+option(RIPRA_BUILD_BENCHMARKS  "Build benchmark executables"  OFF)
+
+# ---- Dependencies ----------------------------------------------------------
 find_package(OpenMP REQUIRED)
 
-# Try to find CUDA if available, but make it optional if it is just a skeleton for now
-# The audit mentioned it was a skeleton. We'll enable CUDA if possible.
-include(CheckLanguage)
-check_language(CUDA)
-if(CMAKE_CUDA_COMPILER)
+if(UNIX)
+  include(CheckLanguage)
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     add_compile_definitions(HAVE_CUDA)
+  endif()
 endif()
 
-add_library(ripra
+# ---- Library --------------------------------------------------------------
+set(RIPRA_SOURCES
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
 )
 
+if(RIPRA_BUILD_SHARED)
+  add_library(ripra SHARED ${RIPRA_SOURCES})
+  target_compile_definitions(ripra PRIVATE BUILD_RIPRA_DLL)
+else()
+  add_library(ripra STATIC ${RIPRA_SOURCES})
+endif()
+
+target_compile_definitions(ripra PRIVATE _POSIX_SOURCE)
 target_link_libraries(ripra PUBLIC OpenMP::OpenMP_C)
 if(UNIX)
   target_link_libraries(ripra PUBLIC m)
 endif()
 target_include_directories(ripra PUBLIC rippra/include/)
 
-# Tests
-enable_testing()
+# ---- Tests -----------------------------------------------------------------
+if(RIPRA_BUILD_TESTS)
+  enable_testing()
 
-add_executable(test_recon rippra/tests/test_recon.c)
-target_link_libraries(test_recon PRIVATE ripra)
-add_test(NAME recon_test COMMAND test_recon)
+  macro(ripra_add_test name source)
+    add_executable(${name} ${source})
+    target_link_libraries(${name} PRIVATE ripra)
+    add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
+  endmacro()
 
-add_executable(test_full_pipeline rippra/tests/test_full_pipeline.c)
-target_link_libraries(test_full_pipeline PRIVATE ripra)
-add_test(NAME full_pipeline_test COMMAND test_full_pipeline)
+  ripra_add_test(test_recon          rippra/tests/test_recon.c)
+  ripra_add_test(test_full_pipeline  rippra/tests/test_full_pipeline.c)
+  ripra_add_test(test_golden_values  rippra/tests/test_golden_values.c)
+  ripra_add_test(test_closed_loop    rippra/tests/test_closed_loop.c)
+  ripra_add_test(test_malformed_input rippra/tests/test_malformed_input.c)
+  ripra_add_test(test_centroid       rippra/tests/test_centroid.c)
+  ripra_add_test(test_la             rippra/tests/test_la.c)
+  ripra_add_test(test_stream         rippra/tests/test_stream.c)
+  ripra_add_test(test_io             rippra/tests/test_io.c)
+  ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
 
-add_executable(test_golden_values rippra/tests/test_golden_values.c)
-target_link_libraries(test_golden_values PRIVATE ripra)
-add_test(NAME golden_values_test COMMAND test_golden_values)
+  # CUDA test disabled until cuda/rippra_cuda.h implementation is complete
+  # if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
+  #   ripra_add_test(test_cuda rippra/tests/test_cuda.c)
+  # endif()
+endif()
 
-add_executable(test_closed_loop rippra/tests/test_closed_loop.c)
-target_link_libraries(test_closed_loop PRIVATE ripra)
-add_test(NAME closed_loop_test COMMAND test_closed_loop)
+# ---- Benchmarks ------------------------------------------------------------
+if(RIPRA_BUILD_BENCHMARKS)
+  add_executable(benchmark_centroid rippra/tests/benchmark_centroid.c)
+  target_link_libraries(benchmark_centroid PRIVATE ripra)
 
-add_executable(test_malformed_input rippra/tests/test_malformed_input.c)
-target_link_libraries(test_malformed_input PRIVATE ripra)
-add_test(NAME malformed_input_test COMMAND test_malformed_input)
+  add_executable(benchmark_openmp rippra/tests/benchmark_openmp.c)
+  target_link_libraries(benchmark_openmp PRIVATE ripra)
 
-# Set working directory for tests so they can load system.conf and data files
-set_tests_properties(recon_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-set_tests_properties(full_pipeline_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-set_tests_properties(golden_values_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-set_tests_properties(closed_loop_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-set_tests_properties(malformed_input_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-
-add_executable(test_centroid rippra/tests/test_centroid.c)
-target_link_libraries(test_centroid PRIVATE ripra)
-add_test(NAME centroid_test COMMAND test_centroid)
-set_tests_properties(centroid_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
-
-add_executable(benchmark_centroid rippra/tests/benchmark_centroid.c)
-target_link_libraries(benchmark_centroid PRIVATE ripra)
-
-add_executable(benchmark_openmp rippra/tests/benchmark_openmp.c)
-target_link_libraries(benchmark_openmp PRIVATE ripra)
-
-add_executable(benchmark_e2e rippra/tests/benchmark_end_to_end.c)
-target_link_libraries(benchmark_e2e PRIVATE ripra)
-set_target_properties(benchmark_e2e PROPERTIES
+  add_executable(benchmark_e2e rippra/tests/benchmark_end_to_end.c)
+  target_link_libraries(benchmark_e2e PRIVATE ripra)
+  set_target_properties(benchmark_e2e PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra/bin")
-
-# CUDA test is disabled until CUDA implementation (cuda/rippra_cuda.h) is completed
-# if(CMAKE_CUDA_COMPILER)
-#     add_executable(test_cuda rippra/tests/test_cuda.c)
-#     target_link_libraries(test_cuda PRIVATE ripra)
-# endif()
+endif()
