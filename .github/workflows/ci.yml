@@ -30,11 +30,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang-format
       - name: Check formatting
         run: |
-          # Check only files changed in this PR (existing code reformat is a separate step)
-          git fetch origin main --depth=1 2>/dev/null || true
-          CHANGED=$(git diff --name-only origin/main...HEAD -- '*.c' '*.h' 2>/dev/null || echo "")
+          # Check only .c/.h files changed in this PR against the base branch.
+          # Full codebase reformat is a separate follow-up.
+          BASE="${GITHUB_BASE_REF:-main}"
+          git fetch origin "$BASE" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/$BASE...HEAD" -- '*.c' '*.h' 2>/dev/null || echo "")
           if [ -z "$CHANGED" ]; then
-            echo "No C/H files changed in this PR."
+            echo "No C/H files changed relative to $BASE."
           else
             echo "$CHANGED" | xargs clang-format --dry-run --Werror
           fi
