@@ -31,6 +31,10 @@ visualizations/*.exe
 visualizations/file_*.png
 visualizations/wavefront_animation.gif
 
+# Duplicate/accidental files
+simulation_visualization/
+visualizations/logo_option_*.png
+
 # Scratch / working notes
 scratch/
 rippra/scratch/
