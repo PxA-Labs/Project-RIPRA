@@ -14,6 +14,7 @@ Python matplotlib + HTML dashboards for real-time pipeline monitoring.
 | `pipeline_dashboard.py` | Three-node pipeline dashboard generator |
 | `generate_3d_animation.py` | Matplotlib 3D wavefront GIF from real time-series CSV |
 | `animate_wavefront.py` | Wavefront animation utilities |
+| `dm_heatmap.py` | DM actuator stroke heatmap over actuator grid |
 
 ## Dashboard Pages
 
@@ -40,6 +41,14 @@ python generate_3d_animation.py
 ```
 
 All outputs saved to `visualizations/`.
+
+### DM Heatmap
+
+```bash
+python dm_heatmap.py
+```
+
+Output: `visualizations/dm_actuator_heatmap.png` — two-panel figure showing the DM actuator commands (left) and the reconstructed zonal phase map (right), with the circular pupil boundary overlaid.
 
 ## Pipeline Dashboard
 

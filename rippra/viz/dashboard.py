@@ -17,6 +17,7 @@ from wavefront_viz import WavefrontVisualizer
 from zernike_dashboard import ZernikeDashboard
 from turbulence_dashboard import TurbulenceDashboard
 from performance_monitor import PerformanceMonitor
+from dm_heatmap import DMHeatmap
 
 class RIPRADashboard:
     def __init__(self):
@@ -33,6 +34,7 @@ class RIPRADashboard:
         ZernikeDashboard().render_all()
         TurbulenceDashboard().render_all()
         PerformanceMonitor().render()
+        DMHeatmap().plot_dm_heatmap()
 
         self._generate_html()
 
@@ -51,6 +53,7 @@ class RIPRADashboard:
             'Turbulence Telemetry': 'turbulence_telemetry.png',
             'Turbulence Regime': 'turbulence_regime.png',
             'Performance Panel': 'performance_panel.png',
+            'DM Actuator Heatmap': 'dm_actuator_heatmap.png',
         }
 
         html = """<!DOCTYPE html>
