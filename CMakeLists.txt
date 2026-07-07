@@ -39,10 +39,15 @@ add_executable(test_golden_values rippra/tests/test_golden_values.c)
 target_link_libraries(test_golden_values PRIVATE ripra)
 add_test(NAME golden_values_test COMMAND test_golden_values)
 
+add_executable(test_closed_loop rippra/tests/test_closed_loop.c)
+target_link_libraries(test_closed_loop PRIVATE ripra)
+add_test(NAME closed_loop_test COMMAND test_closed_loop)
+
 # Set working directory for tests so they can load system.conf and data files
 set_tests_properties(recon_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
 set_tests_properties(full_pipeline_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
 set_tests_properties(golden_values_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
+set_tests_properties(closed_loop_test PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra")
 
 add_executable(test_centroid rippra/tests/test_centroid.c)
 target_link_libraries(test_centroid PRIVATE ripra)
