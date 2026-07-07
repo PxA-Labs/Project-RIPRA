@@ -20,6 +20,19 @@ jobs:
         run: |
           cppcheck --enable=warning,performance,portability --suppress=missingIncludeSystem --inconclusive --error-exitcode=1 rippra/src/ rippra/include/ rippra/tests/
 
+  # ─── Formatting Check ────────────────────────────────
+  formatting:
+    name: Code Formatting (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          find rippra/src rippra/include rippra/tests \( -name '*.c' -o -name '*.h' \) \
+            | xargs clang-format --dry-run --Werror
+
   codeql:
     name: CodeQL Security Scan
     runs-on: ubuntu-latest
