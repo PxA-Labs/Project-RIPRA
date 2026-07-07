@@ -20,8 +20,27 @@
 - Expected max shifts: ~5.5 px for typical coefficients (~0.84 rad RMS)
 - Notebook: `notebook/kaggle_synthetic_shwfs_generator.py` (Kaggle-compatible)
 
+## Changelog Auto-Update
+- `.github/workflows/auto-changelog.yml` runs on every PR merge to main
+- Parses conventional-commit prefix to categorize entry in Keep-a-Changelog format
+- `.github/scripts/update_changelog.py` handles the insertion logic
+
+## Labels Taxonomy
+- Defined in `docs/labels.md`: three-tier system (category, cross-cutting, tech-specific)
+- Created via `gh label create` for any missing labels (e.g. `critical`)
+
+## Performance Documentation
+- `docs/performance.md` documents OpenMP scaling behavior (centroiding benefits most, diminishing returns after 4 threads on 2-vCPU runner)
+- `tools/benchmark_scaling.sh` runs benchmark_openmp at 1/2/4/8 threads
+- CI benchmarks job now runs OpenMP scaling across thread counts
+
+## Added Visualizations
+- `rippra/viz/dm_heatmap.py` — DM actuator stroke heatmap over actuator grid (node_u/node_v)
+- Integrated into `dashboard.py` render_all() and HTML index
+- Saved as `visualizations/dm_actuator_heatmap.png`
+
 ## C Pipeline with Synthetic Data
-- 35/35 tests pass with totlenses=140
+- 38/38 tests pass with totlenses=140 (including doc_example)
 - Config defaults in io.c: default_config() sets totlenses=140, rippra_api.c matches
 - Centroid detection: 137 spots detected, realistic shifts
 - Authoritative configuration: The C pipeline compiles using physical settings defined in `rippra/config/system.conf` (e.g. wavelength = 632.8 nm, camera pixel size = 7.4 µm, totlenses = 140). High-level templates or python ML modules use `config/default.yaml`.
