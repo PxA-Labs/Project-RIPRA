@@ -22,8 +22,8 @@ SpaceInEmptyParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
 AlignOperands: true
 AlignTrailingComments: true
 BreakBeforeBinaryOperators: None

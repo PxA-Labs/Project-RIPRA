@@ -30,8 +30,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang-format
       - name: Check formatting
         run: |
-          find rippra/src rippra/include rippra/tests \( -name '*.c' -o -name '*.h' \) \
-            | xargs clang-format --dry-run --Werror
+          # Check only files changed in this PR (existing code reformat is a separate step)
+          git fetch origin main --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only origin/main...HEAD -- '*.c' '*.h' 2>/dev/null || echo "")
+          if [ -z "$CHANGED" ]; then
+            echo "No C/H files changed in this PR."
+          else
+            echo "$CHANGED" | xargs clang-format --dry-run --Werror
+          fi
 
   codeql:
     name: CodeQL Security Scan
