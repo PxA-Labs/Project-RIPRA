@@ -122,6 +122,15 @@ jobs:
           ../build/benchmark_openmp | tee ../benchmark_results/openmp.txt
           ../build/benchmark_e2e | tee ../benchmark_results/e2e.txt
 
+      - name: Run OpenMP Scaling Benchmark
+        working-directory: rippra
+        run: |
+          for threads in 1 2 4 8; do
+            echo "=== OMP_NUM_THREADS=$threads ==="
+            OMP_NUM_THREADS=$threads ../build/benchmark_openmp 2>&1 | tee -a ../benchmark_results/scaling.txt
+            echo ""
+          done
+
       - name: Upload Benchmark Artifacts
         uses: actions/upload-artifact@v7
         with:
