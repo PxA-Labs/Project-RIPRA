@@ -15,6 +15,9 @@ This file is auto-updated by a GitHub Action on every merged PR.
 - Refresh CHANGELOG.md with backfilled entries; auto-update on PR merge ([#39](https://github.com/PxA-Labs/Project-RIPRA/issues/39))
 - Add API reference worked example with compilable doc_example.c ([#41](https://github.com/PxA-Labs/Project-RIPRA/issues/41))
 
+
+### Performance
+- add AVX2-accelerated TCoG centroiding with runtime dispatch (#49) ([#76](https://github.com/PxA-Labs/Project-RIPRA/pull/76))
 ## [0.4.0] — 2026-07-07
 
 ### Added
