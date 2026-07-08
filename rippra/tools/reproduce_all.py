@@ -42,11 +42,12 @@ def main():
     print("--- Step 1: Ensure C library and calibration tools are built ---")
     if not os.path.exists(lib_path):
         print(f"  Building static C library: {lib_path}")
-        src_files = ["io.c", "la.c", "centroid.c", "recon.c", "rippra_api.c"]
+        src_files = ["io.c", "la.c", "centroid.c", "recon.c", "rippra_api.c", "simd.c"]
         for f in src_files:
             obj = f.replace(".c", ".o")
             run_command(f"gcc -std=c99 -Wall -Wextra -O2 -DNDEBUG -Iinclude -c src/{f} -o build/{obj}", shell=True)
-        objs_str = " ".join([f"build/{f.replace('.c', '.o')}" for f in src_files])
+        run_command(f"gcc -std=c99 -Wall -Wextra -O2 -DNDEBUG -Iinclude -mavx2 -mfma -c src/simd_avx2.c -o build/simd_avx2.o", shell=True)
+        objs_str = " ".join([f"build/{f.replace('.c', '.o')}" for f in src_files]) + " build/simd_avx2.o"
         run_command(f"ar rcs {lib_path} {objs_str}", shell=True)
         
     if not os.path.exists(centroid_exe):
