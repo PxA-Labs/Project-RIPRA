@@ -25,15 +25,15 @@ endif()
 set(RIPRA_SOURCES
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
-  rippra/src/simd.c rippra/src/simd_avx2.c
+  rippra/src/simd.c
 )
 
-# AVX2 compile flags for simd_avx2.c only (not on MSVC — runtime dispatch
-# already returns SSE; also, MSVC linker may promote SSE→VEX globally when
-# an AVX2-compiled .obj is linked, causing crashes in unrelated code).
-if(MSVC)
-  # no /arch:AVX2 — dead code compiled without special flags
-else()
+# simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
+# (a) rippra_simd_detect() returns SSE, so AVX2 path is dead code; and
+# (b) linking an AVX2-compiled .obj promotes SSE→VEX globally, crashing
+#     unrelated code.  On GCC/Clang: compiled with -mavx2 -mfma.
+if(NOT MSVC)
+  list(APPEND RIPRA_SOURCES rippra/src/simd_avx2.c)
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()
 

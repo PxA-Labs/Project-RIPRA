@@ -146,13 +146,15 @@ static void tcog_window_fast_scalar(const double *frame, int w,
     *out_mass = m;
 }
 
-/* ---- AVX2 implementation (declared here; defined in simd_avx2.c) ---- */
+/* ---- AVX2 implementation (defined in simd_avx2.c; not available on MSVC) ---- */
+#ifndef _MSC_VER
 extern void tcog_window_fast_avx2(const double *frame, int w,
                                    int col_min, int col_max,
                                    int row_min, int row_max,
                                    double centroid_percent,
                                    double *out_cx, double *out_cy,
                                    double *out_mass);
+#endif
 
 /* ---- Dispatch (thread-safe, respects force_level) ---- */
 /* cached_level has a benign race: all threads compute the same value */
@@ -173,10 +175,13 @@ void rippra_simd_tcog_window_fast(const double *frame, int w,
             cached_level = (int)rippra_simd_detect();
         level = (rippra_simd_level)cached_level;
     }
-    if (level >= RIPPRA_SIMD_AVX2)
+#ifndef _MSC_VER
+    if (level >= RIPPRA_SIMD_AVX2) {
         tcog_window_fast_avx2(frame, w, col_min, col_max, row_min, row_max,
                               centroid_percent, out_cx, out_cy, out_mass);
-    else
-        tcog_window_fast_scalar(frame, w, col_min, col_max, row_min, row_max,
-                                centroid_percent, out_cx, out_cy, out_mass);
+        return;
+    }
+#endif
+    tcog_window_fast_scalar(frame, w, col_min, col_max, row_min, row_max,
+                            centroid_percent, out_cx, out_cy, out_mass);
 }
