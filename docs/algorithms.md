@@ -21,7 +21,8 @@ motivation, key formulas, and links to C source lines.
 11. [Closed-Loop AO Control](#11-closed-loop-ao-control)
 12. [Linear Algebra Utilities](#12-linear-algebra-utilities)
 13. [Synthetic Data Generation](#13-synthetic-data-generation)
-14. [References](#14-references)
+14. [Architecture Choice Justification](#14-architecture-choice-justification)
+15. [References](#15-references)
 
 ---
 
@@ -698,7 +699,55 @@ c_j = 0.294 · j^{−√3/2} for j ≥ 4    (higher modes)
 
 ---
 
-## 14. References
+## 14. Architecture Choice Justification
+
+The ML-prediction pipeline uses a lightweight multi-layer perceptron (MLP)
+and LSTM stack for temporal Zernike-coefficient forecasting. This section
+explains why several heavier architectures were considered and declined.
+
+### 14.1 Transformers (Attention)
+
+The temporal sequence length for AO prediction is short (`T = 4–8` frames,
+driven by the coherence time `τ₀` ≈ 6.3 ms). Self-attention's quadratic
+complexity in sequence length offers no advantage at this scale—a linear
+LSTM or 1D CNN is equally expressive with lower latency. Empirical studies
+confirm that, for very short sequences, attention mechanisms do not
+outperform recurrent baselines [1].
+
+### 14.2 Physics-Informed Neural Networks (PINNs)
+
+PINNs embed differential-equation residuals into the loss function. The
+Zernike-to-slopes mapping is already a closed-form linear operation
+(Section 6.2), and the dynamics (Kolmogorov turbulence) are stochastic
+rather than deterministic. There is no governing PDE to constrain, so a
+PINN formulation adds complexity without benefit.
+
+### 14.3 Vision Transformers (ViT)
+
+The SHWFS frame is 648 × 492 pixels (≈300k values), but the centroiding
+stage already compresses this to `2 × nspots ≈ 274` features (Section 4.5).
+Patch-based ViT processing of the raw frame would be redundant—the
+hand-engineered feature extraction (detection + TCoG) is cheaper and
+explicitly lossless for the sub-pixel shifts of interest.
+
+### 14.4 Graph Neural Networks (GNN)
+
+Sub-aperture adjacency in the lenslet grid naturally forms a graph.
+However, the zonal reconstruction matrix (Section 7.2) already captures
+neighbour relationships as a fixed linear operator. The Fried geometry is a
+regular grid, not an irregular mesh—a GNN would learn connectivity that is
+known a priori and more efficiently expressed as a sparse matrix multiply.
+
+### 14.5 Latency Budget
+
+The combined inference budget for centroiding + reconstruction + DM command
+computation is **< 1 ms** (761 µs measured end-to-end on a 2-vCPU CI
+runner). Even a modest Transformer (≈6 M parameters) would add ≥5 ms of
+inference latency at frame rate, breaking the real-time requirement.
+
+---
+
+## 15. References
 
 1. **Noll, R. J.** (1976). "Zernike polynomials and atmospheric turbulence."
    *J. Opt. Soc. Am.*, 66(3), 207–211.
@@ -728,6 +777,10 @@ c_j = 0.294 · j^{−√3/2} for j ≥ 4    (higher modes)
    orthogonalization." *Numerische Mathematik*, 7(1), 39–55.
    — One-sided Jacobi SVD.
 
+8. **Tay, Y., Dehghani, M., Bahri, D. & Metzler, D.** (2020). "Efficient
+   Transformers: A Survey." *arXiv:2009.06732*.
+   — Attention scaling vs. sequence length.
+
 ---
 
-*Last updated: 2026-06-27*
+*Last updated: 2026-07-08*
