@@ -333,6 +333,20 @@ The pipeline dashboard (\texttt{pipeline\_dashboard.html}) is a self-contained H
 
 Additional dashboards provide Zernike modal weight tracking (20 coefficients), low-order time-series (500 frames), turbulence telemetry ($r_0$, $\tau_0$), regime classification, and a 6-panel system performance monitor.
 
+\section{Known Assumptions and Simplifications}
+\label{sec:assumptions}
+
+The following simplifying assumptions are made in this work and should be noted before deployment on real hardware:
+
+\paragraph{DM Coupling Model (Section~\ref{sec:dm}):}
+The inter-actuator coupling matrix $\mathbf{M}$ is modeled as a geometric nearest-neighbor rule: self-coupling~1.0, adjacent-actuator coupling~$\gamma$, and diagonal-actuator coupling~$\gamma^2$ (see \texttt{recon.c}, \texttt{rippra\_dm\_setup}). A physical DM's influence function deviates from this idealization and requires either manufacturer-provided influence matrices or interferometric calibration.
+
+\paragraph{Turbulence Data (Section~\ref{sec:dataset}):}
+All training and evaluation data are generated synthetically from a Kolmogorov model with Taylor frozen-flow temporal evolution (AR(1) process). The synthetic pipeline (see \texttt{synthetic\_shwfs.py}) has not been validated against experimental atmospheric data. When real SH-WFS measurements become available, the synthetic data generation parameters should be re-calibrated.
+
+\paragraph{Latency Benchmarks (Section~\ref{sec:perf}):}
+Performance figures presented in this paper are obtained from microbenchmarks on a desktop system (Section~\ref{sec:impl}). A production AO pipeline incurs additional overhead from camera readout, DMA transfers, and DM DAC settling times that are not modeled here.
+
 \section{Conclusion}
 \label{sec:conclusion}
 
