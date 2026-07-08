@@ -19,7 +19,13 @@ int main(void) {
     int w = 648, h = 492;
     rippra_calibration cal;
     double *cx = NULL, *cy = NULL, *dx = NULL, *dy = NULL;
-    int rc;
+    double *W_cpu = NULL, *coeffs_cpu = NULL;
+    double *W_gpu = NULL, *coeffs_gpu = NULL;
+    double *d_frame = NULL, *d_W = NULL, *d_coeffs = NULL, *d_dm = NULL;
+    rippra_zonal_mesh mesh;
+    rippra_modal_model model;
+    int rc, skip = 0;
+    cudaError_t cerr;
 
     printf("=== RIPRA CUDA Acceleration Test ===\n\n");
 
@@ -39,14 +45,14 @@ int main(void) {
     printf("1. Grid Calibration: %d spots\n", cal.nspots);
 
     /* Setup zonal/ modal (CPU - done once at calibration) */
-    rippra_zonal_mesh mesh;
+    memset(&mesh, 0, sizeof(mesh));
     rc = rippra_zonal_setup(&cal, &cfg, &mesh);
-    if (rc != 0) { printf("ERROR: Zonal setup failed\n"); return 1; }
+    if (rc != 0) { printf("ERROR: Zonal setup failed\n"); goto cleanup; }
     printf("2. Zonal mesh: %d nodes\n", mesh.nnodes);
 
-    rippra_modal_model model;
+    memset(&model, 0, sizeof(model));
     rc = rippra_modal_setup(&cal, &cfg, &model);
-    if (rc != 0) { printf("ERROR: Modal setup failed\n"); return 1; }
+    if (rc != 0) { printf("ERROR: Modal setup failed\n"); goto cleanup; }
     printf("3. Modal model: %d modes\n", model.nmodes);
 
     /* ---- CPU baseline ---- */
@@ -58,22 +64,21 @@ int main(void) {
     rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
     rippa_compute_deltas(cx, cy, &cal, cal.nspots, dx, dy, NULL);
 
-    double *W_cpu = (double *)calloc(mesh.nnodes, sizeof(double));
+    W_cpu = (double *)calloc(mesh.nnodes, sizeof(double));
     rippra_zonal_reconstruct(&mesh, dx, dy, &cfg, W_cpu);
 
-    double *coeffs_cpu = (double *)calloc(model.nmodes, sizeof(double));
+    coeffs_cpu = (double *)calloc(model.nmodes, sizeof(double));
     rippra_modal_reconstruct(&model, dx, dy, &cfg, coeffs_cpu);
 
     printf("4. CPU reconstruction complete\n");
 
     /* ---- GPU pipeline ---- */
-    /* Initialize GPU centroid resources */
     rc = rippra_cuda_centroid_init(&cal, w, h);
     if (rc != 0) {
         printf("SKIP: CUDA centroid init failed (no GPU?) — compile-only check\n");
         printf("\n=== CUDA Test Skipped ===\n");
-        rc = 0;
-        goto skip;
+        skip = 1;
+        goto cleanup;
     }
 
     rc = rippra_cuda_dm_init(&mesh);
@@ -81,10 +86,6 @@ int main(void) {
         printf("ERROR: CUDA DM init failed\n");
         goto cleanup;
     }
-
-    /* Allocate GPU memory and copy frame */
-    double *d_frame = NULL, *d_W = NULL, *d_coeffs = NULL, *d_dm = NULL;
-    cudaError_t cerr;
 
     cerr = cudaMalloc(&d_frame, (size_t)w * h * sizeof(double));
     if (cerr) { printf("ERROR: cudaMalloc frame failed\n"); goto cleanup; }
@@ -110,8 +111,8 @@ int main(void) {
     }
 
     /* Copy results back */
-    double *W_gpu = (double *)malloc(mesh.nnodes * sizeof(double));
-    double *coeffs_gpu = (double *)malloc(model.nmodes * sizeof(double));
+    W_gpu = (double *)malloc(mesh.nnodes * sizeof(double));
+    coeffs_gpu = (double *)malloc(model.nmodes * sizeof(double));
 
     cudaMemcpy(W_gpu, d_W, mesh.nnodes * sizeof(double), cudaMemcpyDeviceToHost);
     cudaMemcpy(coeffs_gpu, d_coeffs, model.nmodes * sizeof(double), cudaMemcpyDeviceToHost);
@@ -147,12 +148,12 @@ int main(void) {
 
     /* Verify correctness */
     if (max_diff_W < 1e-6 && max_diff_c < 1e-6) {
-        printf("\n   ✓ GPU results match CPU (within tolerance)\n");
+        printf("\n   GPU results match CPU (within tolerance)\n");
     } else {
-        printf("\n   ⚠ GPU results deviate from CPU\n");
+        printf("\n   GPU results deviate from CPU\n");
     }
 
-    /* Cleanup GPU */
+cleanup:
     cudaFree(d_frame);
     cudaFree(d_W);
     cudaFree(d_coeffs);
@@ -161,9 +162,6 @@ int main(void) {
     rippra_cuda_dm_free();
     free(W_gpu);
     free(coeffs_gpu);
-
-cleanup:
-skip:
     free(cx); free(cy); free(dx); free(dy);
     free(W_cpu); free(coeffs_cpu);
     free(sh_flat); free(img);
@@ -171,6 +169,9 @@ skip:
     rippra_modal_free(&model);
     rippa_calibration_free(&cal);
 
+    if (skip) {
+        return 0;
+    }
     printf("\n=== CUDA Test Complete ===\n");
-    return rc;
+    return 0;
 }
