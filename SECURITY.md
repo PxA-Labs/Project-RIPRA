@@ -2,23 +2,23 @@
 
 ## Supported Versions
 
-Currently, security updates and patches are provided for the following versions:
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1.0 | :x:                |
+Security updates are provided for the latest stable release only.
+Older versions do not receive security patches.
 
 ## Reporting a Vulnerability
 
-We take the security of Project RIPRA seriously. If you find a security vulnerability, please report it responsibly by following these steps:
+We take the security of Project RIPRA seriously. To report a vulnerability:
 
-1. **Do not** report security vulnerabilities through public GitHub issues.
-2. Send an email to the project maintainers at **security@pxa-labs.org** (or contact the team leads).
-3. Include as much detail as possible, including:
-   - A description of the vulnerability.
-   - Steps to reproduce the issue.
-   - Potential impact of the vulnerability.
-   - Any suggested mitigations or patches.
+1. **Do not** file a public GitHub issue.
+2. Submit a report via **GitHub's private vulnerability reporting**:
+   - Go to https://github.com/PxA-Labs/Project-RIPRA/security/advisories
+   - Click "Report a vulnerability"
+3. Alternatively, email the maintainers directly at **purvanshjoshi7534011576@gmail.com** with "SECURITY" in the subject line.
 
-We will acknowledge receipt of your report within 48 hours and work to provide a resolution as quickly as possible.
+Please include:
+   - A description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Any suggested mitigations
+
+We will acknowledge receipt within 48 hours and work toward a resolution.
