@@ -24,8 +24,10 @@ int main(void) {
     double *d_frame = NULL, *d_W = NULL, *d_coeffs = NULL, *d_dm = NULL;
     rippra_zonal_mesh mesh;
     rippra_modal_model model;
-    int rc;
+    int rc, ok = 0;
     cudaError_t cerr;
+    double max_diff_W, rms_W, max_diff_c, rms_c;
+    int i;
 
     printf("=== RIPRA CUDA Acceleration Test ===\n\n");
 
@@ -86,34 +88,28 @@ int main(void) {
         return 0;
     }
 
-    {
     rc = rippra_cuda_dm_init(&mesh);
-    if (rc != 0) {
-        printf("ERROR: CUDA DM init failed\n"); goto cleanup;
-    }
+    if (rc != 0) { printf("ERROR: CUDA DM init failed\n"); goto gpu_cleanup; }
 
     cerr = cudaMalloc(&d_frame, (size_t)w * h * sizeof(double));
-    if (cerr) { printf("ERROR: cudaMalloc frame failed\n"); goto cleanup; }
+    if (cerr) { printf("ERROR: cudaMalloc frame failed\n"); goto gpu_cleanup; }
 
     cerr = cudaMemcpy(d_frame, img, (size_t)w * h * sizeof(double), cudaMemcpyHostToDevice);
-    if (cerr) { printf("ERROR: cudaMemcpy frame failed\n"); goto cleanup; }
+    if (cerr) { printf("ERROR: cudaMemcpy frame failed\n"); goto gpu_cleanup; }
 
     cerr = cudaMalloc(&d_W, mesh.nnodes * sizeof(double));
-    if (cerr) { printf("ERROR: cudaMalloc W failed\n"); goto cleanup; }
+    if (cerr) { printf("ERROR: cudaMalloc W failed\n"); goto gpu_cleanup; }
 
     cerr = cudaMalloc(&d_coeffs, model.nmodes * sizeof(double));
-    if (cerr) { printf("ERROR: cudaMalloc coeffs failed\n"); goto cleanup; }
+    if (cerr) { printf("ERROR: cudaMalloc coeffs failed\n"); goto gpu_cleanup; }
 
     cerr = cudaMalloc(&d_dm, mesh.nnodes * sizeof(double));
-    if (cerr) { printf("ERROR: cudaMalloc dm failed\n"); goto cleanup; }
+    if (cerr) { printf("ERROR: cudaMalloc dm failed\n"); goto gpu_cleanup; }
 
     /* Run GPU full pipeline */
     rc = rippra_cuda_full_pipeline(d_frame, w, h, &cal, &cfg, &mesh, &model,
                                     d_W, d_coeffs, d_dm);
-    if (rc != 0) {
-        printf("ERROR: CUDA pipeline failed\n");
-        goto cleanup;
-    }
+    if (rc != 0) { printf("ERROR: CUDA pipeline failed\n"); goto gpu_cleanup; }
 
     /* Copy results back */
     W_gpu = (double *)malloc(mesh.nnodes * sizeof(double));
@@ -126,11 +122,11 @@ int main(void) {
 
     /* Compare CPU vs GPU */
     printf("\n6. CPU vs GPU Comparison:\n\n");
-
-    double max_diff_W = 0.0, rms_W = 0.0, max_diff_c = 0.0, rms_c = 0.0;
+    ok = 1;
 
     /* Wavefront phase comparison */
-    for (int i = 0; i < mesh.nnodes; ++i) {
+    max_diff_W = 0.0; rms_W = 0.0;
+    for (i = 0; i < mesh.nnodes; ++i) {
         double diff = fabs(W_cpu[i] - W_gpu[i]);
         if (diff > max_diff_W) max_diff_W = diff;
         rms_W += diff * diff;
@@ -141,7 +137,8 @@ int main(void) {
     printf("     RMS diff:          %.2e m\n", rms_W);
 
     /* Zernike coefficients comparison */
-    for (int i = 0; i < model.nmodes; ++i) {
+    max_diff_c = 0.0; rms_c = 0.0;
+    for (i = 0; i < model.nmodes; ++i) {
         double diff = fabs(coeffs_cpu[i] - coeffs_gpu[i]);
         if (diff > max_diff_c) max_diff_c = diff;
         rms_c += diff * diff;
@@ -158,16 +155,17 @@ int main(void) {
         printf("\n   GPU results deviate from CPU\n");
     }
 
-cleanup:
+gpu_cleanup:
     cudaFree(d_frame);
     cudaFree(d_W);
     cudaFree(d_coeffs);
     cudaFree(d_dm);
-    free(W_gpu);
-    free(coeffs_gpu);
-    }
     rippra_cuda_centroid_free();
     rippra_cuda_dm_free();
+    free(W_gpu);
+    free(coeffs_gpu);
+
+cleanup:
     free(cx); free(cy); free(dx); free(dy);
     free(W_cpu); free(coeffs_cpu);
     free(sh_flat); free(img);
