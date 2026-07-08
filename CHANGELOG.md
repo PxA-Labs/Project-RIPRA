@@ -22,6 +22,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 ## [0.4.0] — 2026-07-07
 
 ### Added
+- add temporal leakage audit for sequence model splits (#35) ([#78](https://github.com/PxA-Labs/Project-RIPRA/pull/78))
 - Public C API (`rippra_api.h`) with opaque-handle interface
 - Golden-value regression tests for r₀, τ₀, and zonal reconstruction ([#16](https://github.com/PxA-Labs/Project-RIPRA/issues/16))
 - Closed-loop convergence test (`test_closed_loop.c`, [#24](https://github.com/PxA-Labs/Project-RIPRA/issues/24))
