@@ -10,6 +10,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 ## [Unreleased]
 
 ### Documentation
+- annotate config/default.yaml with parameter provenance and add override docs ([#83](https://github.com/PxA-Labs/Project-RIPRA/pull/83))
 - fix SECURITY.md with verified contact and GitHub security advisories ([#82](https://github.com/PxA-Labs/Project-RIPRA/pull/82))
 - add architecture choice justification (#37) ([#77](https://github.com/PxA-Labs/Project-RIPRA/pull/77))
 - add architecture diagram, API worked example, and auto-changelog (closes #38, #39, #41) ([#75](https://github.com/PxA-Labs/Project-RIPRA/pull/75))
