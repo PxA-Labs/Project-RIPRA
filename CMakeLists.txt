@@ -76,10 +76,12 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
   ripra_add_test(test_simd           rippra/tests/test_simd.c)
 
-  # CUDA test disabled until cuda/rippra_cuda.h implementation is complete
-  # if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
-  #   ripra_add_test(test_cuda rippra/tests/test_cuda.c)
-  # endif()
+  # CUDA test: compile check (requires GPU to actually run; CI runs
+  # continue-on-error).  Mark .c as CUDA so nvcc compiles it.
+  if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
+    set_source_files_properties(rippra/tests/test_cuda.c PROPERTIES LANGUAGE CUDA)
+    ripra_add_test(test_cuda rippra/tests/test_cuda.c)
+  endif()
 endif()
 
 # ---- Benchmarks ------------------------------------------------------------

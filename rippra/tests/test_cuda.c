@@ -70,8 +70,10 @@ int main(void) {
     /* Initialize GPU centroid resources */
     rc = rippra_cuda_centroid_init(&cal, w, h);
     if (rc != 0) {
-        printf("ERROR: CUDA centroid init failed (no GPU?)\n");
-        goto cleanup;
+        printf("SKIP: CUDA centroid init failed (no GPU?) — compile-only check\n");
+        printf("\n=== CUDA Test Skipped ===\n");
+        rc = 0;
+        goto skip;
     }
 
     rc = rippra_cuda_dm_init(&mesh);
@@ -161,6 +163,7 @@ int main(void) {
     free(coeffs_gpu);
 
 cleanup:
+skip:
     free(cx); free(cy); free(dx); free(dy);
     free(W_cpu); free(coeffs_cpu);
     free(sh_flat); free(img);
@@ -169,5 +172,5 @@ cleanup:
     rippa_calibration_free(&cal);
 
     printf("\n=== CUDA Test Complete ===\n");
-    return 0;
+    return rc;
 }

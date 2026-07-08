@@ -208,6 +208,16 @@ jobs:
       - name: Build (all targets, CUDA if available)
         run: cmake --build build -j
 
+      - name: Generate synthetic test data
+        working-directory: rippra
+        run: |
+          pip install --quiet numpy
+          python ml/synthetic_shwfs.py
+
+      - name: Run CUDA tests (skips gracefully without GPU)
+        continue-on-error: true
+        run: ctest --test-dir build -R test_cuda --output-on-failure
+
   publish-package:
     name: Publish Docker Image to GHCR
     runs-on: ubuntu-latest
