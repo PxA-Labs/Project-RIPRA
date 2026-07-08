@@ -147,11 +147,9 @@ extern void tcog_window_fast_avx2(const double *frame, int w,
                                    double *out_cx, double *out_cy,
                                    double *out_mass);
 
-/* ---- Dispatch (thread-safe for OpenMP) ---- */
-/* volatile guard: benign race on first call — all threads compute same pointer */
-static volatile int tcog_ready = 0;
-static void (*tcog_impl)(const double *, int, int, int, int, int,
-                          double, double *, double *, double *);
+/* ---- Dispatch (thread-safe, respects force_level) ---- */
+/* cached_level has a benign race: all threads compute the same value */
+static volatile int cached_level = -1;
 
 void rippra_simd_tcog_window_fast(const double *frame, int w,
                                    int col_min, int col_max,
@@ -160,13 +158,18 @@ void rippra_simd_tcog_window_fast(const double *frame, int w,
                                    double *out_cx, double *out_cy,
                                    double *out_mass)
 {
-    if (!tcog_ready) {
-        rippra_simd_level level = (force_level >= 0) ? (rippra_simd_level)force_level
-                                                      : rippra_simd_detect();
-        tcog_impl = (level >= RIPPRA_SIMD_AVX2) ? tcog_window_fast_avx2
-                                                  : tcog_window_fast_scalar;
-        tcog_ready = 1;
+    rippra_simd_level level;
+    if (force_level >= 0) {
+        level = (rippra_simd_level)force_level;
+    } else {
+        if (cached_level < 0)
+            cached_level = (int)rippra_simd_detect();
+        level = (rippra_simd_level)cached_level;
     }
-    tcog_impl(frame, w, col_min, col_max, row_min, row_max,
-              centroid_percent, out_cx, out_cy, out_mass);
+    if (level >= RIPPRA_SIMD_AVX2)
+        tcog_window_fast_avx2(frame, w, col_min, col_max, row_min, row_max,
+                              centroid_percent, out_cx, out_cy, out_mass);
+    else
+        tcog_window_fast_scalar(frame, w, col_min, col_max, row_min, row_max,
+                                centroid_percent, out_cx, out_cy, out_mass);
 }

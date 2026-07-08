@@ -59,7 +59,7 @@ int main(void) {
     double t_scalar = (get_time_ms() - t0) / ITERS;
     printf("Scalar:  %.3f ms/frame (%d spots)\n", t_scalar, cal.nspots);
 
-    /* ---- AVX2 ---- */
+    /* ---- AVX2 (separate invocation to avoid cache interaction) ---- */
     rippra_simd_force_level(RIPPRA_SIMD_AVX2);
     for (int i = 0; i < WARMUP; i++)
         rippa_compute_centroids(img, w, h, &cal, &cfg, cx, cy);
@@ -73,7 +73,7 @@ int main(void) {
 
     printf("\nSpeedup (AVX2 vs scalar): %.2f×\n", t_scalar / t_avx2);
 
-    /* Verify correctness */
+    /* Verify correctness (force_level is checked every call now, so order doesn't matter) */
     double *cx_ref = (double *)malloc(cal.nspots * sizeof(double));
     double *cy_ref = (double *)malloc(cal.nspots * sizeof(double));
     double *cx_avx = (double *)malloc(cal.nspots * sizeof(double));
