@@ -59,6 +59,23 @@ int rippra_cuda_dm_map(const double *d_target_phase, int nnodes,
                        const rippa_config *cfg,
                        double *d_dm_commands);
 
+/* Initialize GPU resources for DM mapping (call once after zonal setup) */
+int rippra_cuda_dm_init(const rippra_zonal_mesh *mesh);
+
+/* Free GPU resources for DM mapping */
+void rippra_cuda_dm_free(void);
+
+/* ---- Combined Pipeline ---- */
+
+/* Run full GPU pipeline: centroid → deltas → zonal recon → modal recon → DM map */
+int rippra_cuda_full_pipeline(const double *d_frame, int width, int height,
+                              const rippra_calibration *cal,
+                              const rippa_config *cfg,
+                              const rippra_zonal_mesh *mesh,
+                              const rippra_modal_model *model,
+                              double *d_W, double *d_coeffs,
+                              double *d_dm_commands);
+
 /* ---- Utility ---- */
 
 /* Allocate device memory and copy from host */
