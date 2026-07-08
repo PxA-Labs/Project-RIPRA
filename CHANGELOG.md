@@ -21,6 +21,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 - add AVX2-accelerated TCoG centroiding with runtime dispatch (#49) ([#76](https://github.com/PxA-Labs/Project-RIPRA/pull/76))
 
 ### CI/CD
+- enable CUDA test compilation in CI (#22) ([#80](https://github.com/PxA-Labs/Project-RIPRA/pull/80))
 - add benchmark regression tracking with baseline comparison (#23) ([#79](https://github.com/PxA-Labs/Project-RIPRA/pull/79))
 ## [0.4.0] — 2026-07-07
 
