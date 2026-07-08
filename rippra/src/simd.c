@@ -72,10 +72,10 @@ static int xgetbv_ymm(void)       { return 0; }
 
 rippra_simd_level rippra_simd_detect(void)
 {
-#ifdef _MSC_VER
-    /* MSVC codegen for AVX2 intrinsics (cmp_pd, fmadd_pd) produces illegal
-       instructions or segfaults in CI (windows-2025-vs2026).  Disable AVX2
-       path on MSVC until the kernel can be debugged; scalar fallback is used. */
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+    /* MSVC & MinGW: AVX2 codegen issues in CI (windows-2025-vs2026,
+       MinGW GCC on GH Actions).  Disable AVX2 path on Windows until
+       kernel can be debugged; scalar fallback is used. */
     return RIPPRA_SIMD_SSE;
 #else
     if (!cpuid_has_avx())     return RIPPRA_SIMD_SSE;

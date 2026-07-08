@@ -31,9 +31,16 @@ static int compare_paths(int col_min, int col_max, int row_min, int row_max,
 
     double cx_s, cy_s, m_s, cx_a, cy_a, m_a;
 
+    rippra_simd_level max_level = rippra_simd_detect();
+
     rippra_simd_force_level(RIPPRA_SIMD_NONE);
     rippra_simd_tcog_window_fast(frame, w, col_min, col_max, row_min, row_max,
                                  percent, &cx_s, &cy_s, &m_s);
+
+    if (max_level < RIPPRA_SIMD_AVX2) {
+        /* AVX2 not supported on this platform — skip comparison */
+        return 0;
+    }
 
     rippra_simd_force_level(RIPPRA_SIMD_AVX2);
     rippra_simd_tcog_window_fast(frame, w, col_min, col_max, row_min, row_max,
