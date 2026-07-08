@@ -1,11 +1,17 @@
 # AGENTS.md — Project Memory
 
 ## CI Pipeline
-- **3 jobs** (Linux C, Windows C, Python) — all green
-- Linux/Windows: compile C library (`io`, `la`, `centroid`, `recon`, `rippra_api`), build tests
-- Python: test_onnx_models.py, predictive_ao.py (skips torch if unavailable)
+- **Multiple jobs** (Linux C, Windows C, Python, CUDA, benchmarks) — all green
+- Linux/Windows: compile C library (`io`, `la`, `centroid`, `recon`, `rippra_api`, `simd`), build tests
+- Python: test_onnx_models.py, predictive_ao.py, test_split_leakage.py (skips torch if unavailable)
 - Synthetic data generated in CI before C tests (via `synthetic_shwfs.generate_test_data`)
 - CI does NOT commit synthetic data — regenerates every run
+
+## Temporal Leakage Fix (2026-07-08)
+- `train_sequence.py` and `evaluate_sequence.py` previously used `random_split` on flat sample list → adjacent sliding windows leaked across train/val/test
+- Fix: `SHSequenceDataset.split_by_sequence()` splits at the *sequence* level (contiguous blocks), then `check_split_leakage()` asserts no sequence ID appears in >1 split
+- `test_split_leakage.py` programmatically verifies the invariant
+- Documented in class docstring and split method
 
 ## Critical Bug Fix (2026-06-27)
 - `rippra_zonal_reconstruct` and `rippra_modal_reconstruct` used `cfg->totlenses` instead of actual detected spot count → out-of-bounds reads

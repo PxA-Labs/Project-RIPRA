@@ -4,14 +4,36 @@ import argparse
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, Subset
 
 from sequence_models import WavefrontLSTM, TurbulenceClassifierLSTM, TurbulenceParameterEstimator
+
+def check_split_leakage(dataset, train_indices, val_indices, test_indices):
+    """
+    Assert that no sequence ID appears in more than one split.
+    Must be called after SHSequenceDataset is constructed.
+    """
+    def seq_ids(indices):
+        return set(dataset.sequence_ids[i] for i in indices)
+    train_s = seq_ids(train_indices)
+    val_s = seq_ids(val_indices)
+    test_s = seq_ids(test_indices)
+    tv = train_s & val_s
+    tt = train_s & test_s
+    vt = val_s & test_s
+    if tv or tt or vt:
+        raise AssertionError(
+            f"Temporal leakage detected: train↔val {len(tv)}, "
+            f"train↔test {len(tt)}, val↔test {len(vt)} sequences overlap."
+        )
 
 class SHSequenceDataset(Dataset):
     """
     Sequence dataset loader that slices sequence frames into sliding windows
     without crossing sequence boundaries (each sequence is 1000 frames).
+    
+    Splits should be performed at the *sequence* level (see split_by_sequence())
+    to avoid temporal leakage from adjacent overlapping windows.
     """
     def __init__(self, dataset_path, lookback=10, step=1, task='predict'):
         self.lookback = lookback
@@ -29,6 +51,7 @@ class SHSequenceDataset(Dataset):
         n_sequences = n_frames // self.seq_len
         
         self.samples = []
+        self.sequence_ids = []
         for s in range(n_sequences):
             seq_start = s * self.seq_len
             
@@ -62,6 +85,7 @@ class SHSequenceDataset(Dataset):
                 elif self.task == 'parameter':
                     # Target: average D_r0 of sequence
                     self.samples.append((hist_disp, avg_dr0))
+                self.sequence_ids.append(s)
                     
     def __len__(self):
         return len(self.samples)
@@ -72,6 +96,36 @@ class SHSequenceDataset(Dataset):
             return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.long)
         else:
             return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
+    
+    @staticmethod
+    def split_by_sequence(dataset, train_ratio=0.8, val_ratio=0.1, seed=42):
+        """
+        Split dataset by contiguous blocks of sequences (not individual samples).
+        This avoids temporal leakage from adjacent overlapping windows.
+        
+        Returns (train_set, val_set, test_set) as torch Subset instances.
+        """
+        n_seqs = max(dataset.sequence_ids) + 1 if dataset.sequence_ids else 0
+        seq_indices = list(range(n_seqs))
+        rng = np.random.RandomState(seed)
+        rng.shuffle(seq_indices)
+        
+        n_train = int(train_ratio * n_seqs)
+        n_val = int(val_ratio * n_seqs)
+        
+        train_seqs = set(seq_indices[:n_train])
+        val_seqs = set(seq_indices[n_train:n_train + n_val])
+        test_seqs = set(seq_indices[n_train + n_val:])
+        
+        train_idx = [i for i, sid in enumerate(dataset.sequence_ids) if sid in train_seqs]
+        val_idx   = [i for i, sid in enumerate(dataset.sequence_ids) if sid in val_seqs]
+        test_idx  = [i for i, sid in enumerate(dataset.sequence_ids) if sid in test_seqs]
+        
+        check_split_leakage(dataset, train_idx, val_idx, test_idx)
+        
+        return (Subset(dataset, train_idx),
+                Subset(dataset, val_idx),
+                Subset(dataset, test_idx))
 
 
 def train_epoch(model, loader, criterion, optimizer, device):
@@ -159,15 +213,9 @@ def main():
     print(f"Loading sequence dataset for task '{args.task}' (lookback={args.lookback}, step={args.step})...")
     full_dataset = SHSequenceDataset(args.dataset, lookback=args.lookback, step=args.step, task=args.task)
     
-    # Train / Val / Test split (80% / 10% / 10%)
-    total_len = len(full_dataset)
-    train_len = int(0.8 * total_len)
-    val_len = int(0.1 * total_len)
-    test_len = total_len - train_len - val_len
-    
-    train_set, val_set, test_set = random_split(
-        full_dataset, [train_len, val_len, test_len],
-        generator=torch.Generator().manual_seed(42)
+    # Train / Val / Test split (80% / 10% / 10%) at sequence level
+    train_set, val_set, test_set = SHSequenceDataset.split_by_sequence(
+        full_dataset, train_ratio=0.8, val_ratio=0.1, seed=42
     )
     
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
