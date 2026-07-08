@@ -16,6 +16,7 @@
  * This matches MATLAB's plot() coordinate system after imshow().
  */
 #include "rippra/centroid.h"
+#include "rippra/simd.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,41 +224,15 @@ static void tcog_window(const double *frame, int w,
     *out_mass = m;
 }
 
-/* Combined pass: compute min/max AND run TCoG in a single window scan */
+/* Combined pass: compute min/max AND run TCoG in a single window scan.
+   Dispatches to SIMD-accelerated path when AVX2 is available. */
 static void tcog_window_fast(const double *frame, int w,
                              int col_min, int col_max, int row_min, int row_max,
                              double centroid_percent,
                              double *out_cx, double *out_cy, double *out_mass)
 {
-    double sx = 0.0, sy = 0.0, m = 0.0;
-    double mn = 1e18, mx = -1e18;
-    for (int j = row_min; j <= row_max; ++j) {
-        const double *row = frame + (size_t)j * w;
-        for (int i = col_min; i <= col_max; ++i) {
-            double v = row[i];
-            if (v < mn) mn = v;
-            if (v > mx) mx = v;
-        }
-    }
-    double level = mn + centroid_percent * (mx - mn);
-    for (int j = row_min; j <= row_max; ++j) {
-        const double *row = frame + (size_t)j * w;
-        for (int i = col_min; i <= col_max; ++i) {
-            double v = row[i];
-            if (v < level) continue;
-            sx += (double)i * v;
-            sy += (double)j * v;
-            m += v;
-        }
-    }
-    if (m > 1e-9) {
-        *out_cx = sx / m;
-        *out_cy = sy / m;
-    } else {
-        *out_cx = NAN;
-        *out_cy = NAN;
-    }
-    *out_mass = m;
+    rippra_simd_tcog_window_fast(frame, w, col_min, col_max, row_min, row_max,
+                                 centroid_percent, out_cx, out_cy, out_mass);
 }
 
 /* ----------------------------------------------------------------------- */
