@@ -421,17 +421,9 @@ int rippa_compute_centroids_refined(const double *frame, int width, int height,
         if (cmax >= width)  cmax = width - 1;
         if (rmax >= height) rmax = height - 1;
 
-        double wmin = 1e18, wmax = -1e18, wlevel;
-        int a, b;
-        for (b = rmin; b <= rmax; ++b)
-            for (a = cmin; a <= cmax; ++a) {
-                double v = frame[(size_t)b * width + a];
-                if (v < wmin) wmin = v;
-                if (v > wmax) wmax = v;
-            }
-        wlevel = wmin + cfg->centroid_percent * (wmax - wmin);
-        tcog_window(frame, width, cmin, cmax, rmin, rmax, wlevel,
-                    &cx_out[k], &cy_out[k], &(double){0.0});
+        tcog_window_fast(frame, width, cmin, cmax, rmin, rmax,
+                         cfg->centroid_percent,
+                         &cx_out[k], &cy_out[k], &(double){0.0});
     }
 
     rippa_compute_deltas(cx_out, cy_out, cal, nspots, dx, dy, NULL);
