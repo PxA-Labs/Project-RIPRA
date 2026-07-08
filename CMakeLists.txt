@@ -37,6 +37,16 @@ if(NOT MSVC)
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()
 
+# Add CUDA kernel sources if CUDA compiler is available
+if(CMAKE_CUDA_COMPILER)
+  set(RIPPRA_CUDA_SOURCES
+    rippra/cuda/centroid_kernels.cu
+    rippra/cuda/dm_kernels.cu
+    rippra/cuda/matrix_kernels.cu
+  )
+  list(APPEND RIPRA_SOURCES ${RIPPRA_CUDA_SOURCES})
+endif()
+
 if(RIPRA_BUILD_SHARED)
   add_library(ripra SHARED ${RIPRA_SOURCES})
   target_compile_definitions(ripra PRIVATE BUILD_RIPRA_DLL)

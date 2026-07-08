@@ -24,7 +24,7 @@ int main(void) {
     double *d_frame = NULL, *d_W = NULL, *d_coeffs = NULL, *d_dm = NULL;
     rippra_zonal_mesh mesh;
     rippra_modal_model model;
-    int rc, ok = 0;
+    int rc;
     cudaError_t cerr;
     double max_diff_W, rms_W, max_diff_c, rms_c;
     int i;
@@ -122,7 +122,6 @@ int main(void) {
 
     /* Compare CPU vs GPU */
     printf("\n6. CPU vs GPU Comparison:\n\n");
-    ok = 1;
 
     /* Wavefront phase comparison */
     max_diff_W = 0.0; rms_W = 0.0;
