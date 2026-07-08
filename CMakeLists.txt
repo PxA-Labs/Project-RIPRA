@@ -25,7 +25,17 @@ endif()
 set(RIPRA_SOURCES
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
+  rippra/src/simd.c
 )
+
+# simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
+# (a) rippra_simd_detect() returns SSE, so AVX2 path is dead code; and
+# (b) linking an AVX2-compiled .obj promotes SSE→VEX globally, crashing
+#     unrelated code.  On GCC/Clang: compiled with -mavx2 -mfma.
+if(NOT MSVC)
+  list(APPEND RIPRA_SOURCES rippra/src/simd_avx2.c)
+  set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
+endif()
 
 if(RIPRA_BUILD_SHARED)
   add_library(ripra SHARED ${RIPRA_SOURCES})
@@ -64,6 +74,7 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_io             rippra/tests/test_io.c)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
+  ripra_add_test(test_simd           rippra/tests/test_simd.c)
 
   # CUDA test disabled until cuda/rippra_cuda.h implementation is complete
   # if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
@@ -83,6 +94,9 @@ if(RIPRA_BUILD_BENCHMARKS)
   target_link_libraries(benchmark_e2e PRIVATE ripra)
   set_target_properties(benchmark_e2e PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra/bin")
+
+  add_executable(benchmark_simd rippra/tests/benchmark_simd.c)
+  target_link_libraries(benchmark_simd PRIVATE ripra)
 
   if(CMAKE_CUDA_COMPILER)
     add_executable(benchmark_cuda_vs_cpu rippra/tests/benchmark_cuda_vs_cpu.cu)
