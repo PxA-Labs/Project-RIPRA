@@ -18,6 +18,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 
 
 ### Performance
+- use SIMD-accelerated tcog_window_fast in refined centroiding path ([#81](https://github.com/PxA-Labs/Project-RIPRA/pull/81))
 - add AVX2-accelerated TCoG centroiding with runtime dispatch (#49) ([#76](https://github.com/PxA-Labs/Project-RIPRA/pull/76))
 
 ### CI/CD
