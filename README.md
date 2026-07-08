@@ -284,6 +284,23 @@ Open `notebook/kaggle_synthetic_shwfs_generator.ipynb` to customize parameters, 
 
 ### 2. Spot Deviation on Detector due to Distorted Wavefront
 ![Spot Deviation](./visualizations/Schematic%20showing%20spot%20deviation%20on%20detector%20due%20to%20distorted%20wavefront.webp)
+## Known Assumptions and Simplifications
+
+The following simplifications are documented for reviewers and downstream users:
+
+### DM Coupling Model
+The inter-actuator coupling matrix uses a **geometric nearest-neighbor model** — self-coupling 1.0, adjacent-actuator coupling by the configurable `coupling` coefficient, and diagonal coupling by `coupling²`. This is not a measured influence function. See `rippra/src/recon.c` (`rippra_dm_setup`, `rippra_dm_map`).
+
+A physical DM requires either manufacturer-provided influence matrices or interferometric calibration to replace this model.
+
+### Turbulence Data
+All training and evaluation datasets are **synthetically generated** using a Kolmogorov turbulence model with Taylor frozen-flow temporal evolution (AR(1)). This has not been validated against experimental atmospheric data. See `rippra/ml/synthetic_shwfs.py`.
+
+When real SH-WFS measurements become available, the synthetic data generation parameters should be re-calibrated.
+
+### Latency Benchmarks
+Performance figures reported are from **microbenchmarks** on a desktop system (see [Performance Documentation](docs/performance.md)). A production AO pipeline incurs additional overhead from camera readout, DMA transfers, and DM DAC settling times not modeled here.
+
 ## Acknowledgements
 
 - ISRO Bharatiya Antariksh Hackathon 2026 for the problem statement and evaluation framework.
