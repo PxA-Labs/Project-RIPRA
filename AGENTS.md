@@ -60,11 +60,29 @@
 - wavelength = 632.8e-9 m (HeNe)
 - totlenses = 140 (must be >= 137 detected spots)
 
+## TCoG SIMD Coverage (2026-07-08)
+- Main TCoG inner loop (`tcog_window_fast` → `rippra_simd_tcog_window_fast`) AVX2-vectorized in PR #76
+- 4.30× speedup on Linux GCC (AVX2 vs scalar); disabled on Windows (MSVC/MinGW) due to codegen issues
+- `simd_avx2.c` uses `_mm256_loadu_pd`, `_mm256_cmp_pd`/`_mm256_blendv_pd` for thresholding, `_mm256_fmadd_pd` for weighted sums
+- Horizontal reductions (`hmin256_pd`, `hmax256_pd`, `hsum256_pd`) via extract128 + unpackhi pattern
+- Refined centroiding path (`rippa_compute_centroids_refined`) was still scalar — PR #81 replaced manual minmax+tcog_window with `tcog_window_fast()` call, completing SIMD coverage for both fast and refined paths
+- Calibration path (`rippa_calibrate_grid`) remains scalar — called once, not performance-critical
+- Tests: `test_simd.c` verifies bit-exact match between scalar and AVX2 paths; `benchmark_simd.c` measures speedup
+
 ## Build System
 - CI builds use gcc, output to `build/` directory
 - `BUILD_RIPRA_DLL` NOT defined for CI builds (static linking)
 - Local build scripts in `rippra/` match CI structure
 - `build_test_pipeline.bat` updated to include `rippra_api.c` (was missing)
+
+## CUDA CI Build (2026-07-08)
+- `test_cuda.c` compiled with nvcc via CMake (`.c` file marked LANGUAGE CUDA)
+- nvcc (C++ mode) rejects `goto` crossing variable initializations — fixed by splitting cleanup into `cleanup:` and `gpu_cleanup:` labels
+- GPU skip path uses early return (not `goto`) to avoid crossing GPU alloc declarations
+- Loop variables declared at function scope to avoid C++ scoping issues
+- `.cu` kernel files added to `ripra` library target so `test_cuda` can link them
+- Missing function declarations added to `rippra_cuda.h`
+- CI runs `ctest -R test_cuda` with `continue-on-error: true`
 
 ## Known Issues
 - Fried geometry zonal reconstruction can be ill-conditioned for synthetic data
