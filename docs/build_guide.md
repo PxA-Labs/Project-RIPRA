@@ -172,6 +172,27 @@ All system parameters in `rippra/config/system.conf`:
 | `dm_nact_y` | DM actuators across Y | 8 |
 | `coupling` | Inter-actuator coupling | 0.2 |
 
+### Overriding for Real Datasets
+
+Before running on real ISRO (or other) hardware data, you **must** update:
+
+1. **`rippra/config/system.conf`** — the C pipeline's authoritative config.  
+   Override every parameter to match your sensor/lenslet/DM datasheet.
+
+2. **`config/default.yaml`** — Python/ML template config.  
+   Each parameter is annotated with `[PS9]` or `[PLACEHOLDER]` provenance.  
+   Replace all `[PLACEHOLDER]` values with real measurements.
+
+Key parameters to verify for real data:
+- `camera_pixsize` / `pixel_size` — from the camera sensor datasheet
+- `frame_width`, `frame_height` / `resolution` — sensor ROI or full-frame size
+- `pitch` — MLA lenslet pitch (from manufacturer or calibration)
+- `flength` / `focal_length` — MLA focal length
+- `pupil_radius` — diameter of the telescope/beam at the MLA plane
+- `wavelength` — centre wavelength of the source or filter
+- `dm_nact_x`, `dm_nact_y` / `n_actuators` — DM actuator grid dimensions
+- `coupling` — inter-actuator influence, measured from DM surface metrology
+
 ## Data Files
 
 | File | Size | Description |

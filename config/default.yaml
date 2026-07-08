@@ -1,16 +1,34 @@
+# RIPRA Default Configuration (Python/ML templates)
+#
+# PROVENANCE: Each parameter is annotated as either:
+#   [PS9]   — Value matches the official Problem Statement 9 specification
+#   [PLACEHOLDER] — Value is an assumed default; MUST be overridden with
+#                   real system parameters before submission/running on
+#                   actual hardware data.
+#
+# The authoritative C pipeline configuration is at
+#   rippra/config/system.conf
+# which contains the true physical SHWFS parameters used by the C library
+# (centroid detection, wavefront reconstruction, etc.).
+#
+# When a real ISRO dataset becomes available, update this file by setting
+# every parameter to match the sensor/lenslet/DM datasheet values.
+#
+# See also: docs/build_guide.md (§Configuration)
+
 camera:
-  pixel_size: 5.6e-6      # metres
-  resolution: [1024, 1024]
-  bit_depth: 12
+  pixel_size: 5.6e-6          # [PLACEHOLDER] system.conf uses 7.4e-6 m
+  resolution: [1024, 1024]    # [PLACEHOLDER] system.conf uses 648×492 px
+  bit_depth: 12               # [PLACEHOLDER] assumed 12-bit; adjust per camera datasheet
 
 mla:
-  pitch: 150e-6            # metres
-  n_lenslets: 20
-  focal_length: 18e-3      # metres
+  pitch: 150e-6               # [PLACEHOLDER] system.conf uses 300e-6 m
+  n_lenslets: 20              # [PLACEHOLDER] system.conf uses 140 (137 detected)
+  focal_length: 18e-3         # [PS9] Matches system.conf flength = 18 mm
 
 dm:
-  n_actuators: 21
-  actuator_pitch: 0.5e-3   # metres
-  coupling: 0.15
+  n_actuators: 21             # [PLACEHOLDER] system.conf uses 12×12 = 144
+  actuator_pitch: 0.5e-3      # [PLACEHOLDER] not in system.conf; adjust per DM datasheet
+  coupling: 0.15              # [PS9] Matches system.conf
 
-wavelength: 500e-9         # metres
+wavelength: 500e-9            # [PLACEHOLDER] system.conf uses 632.8e-9 m (HeNe)
