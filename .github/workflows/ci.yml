@@ -106,7 +106,7 @@ jobs:
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DRIPRA_BUILD_BENCHMARKS=ON
 
       - name: Build Benchmarks
-        run: cmake --build build -j --target benchmark_centroid benchmark_openmp benchmark_e2e
+        run: cmake --build build -j --target benchmark_centroid benchmark_openmp benchmark_e2e benchmark_simd
 
       - name: Generate synthetic test data
         working-directory: rippra
@@ -121,6 +121,7 @@ jobs:
           ../build/benchmark_centroid | tee ../benchmark_results/centroid.txt
           ../build/benchmark_openmp | tee ../benchmark_results/openmp.txt
           ../build/benchmark_e2e | tee ../benchmark_results/e2e.txt
+          ../build/benchmark_simd | tee ../benchmark_results/simd.txt
 
       - name: Run OpenMP Scaling Benchmark
         working-directory: rippra
@@ -130,6 +131,10 @@ jobs:
             OMP_NUM_THREADS=$threads ../build/benchmark_openmp 2>&1 | tee -a ../benchmark_results/scaling.txt
             echo ""
           done
+
+      - name: Check Benchmark Regressions
+        working-directory: rippra
+        run: python ../tools/check_benchmark_regression.py ../benchmark_results
 
       - name: Upload Benchmark Artifacts
         uses: actions/upload-artifact@v7

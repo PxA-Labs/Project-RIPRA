@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "description": "Baseline performance metrics for regression tracking (measured on ubuntu-latest GH Actions runner, 2 vCPU)",
+  "updated": "2026-07-08",
+  "threshold_pct": 20,
+  "metrics": {
+    "e2e_hotpath_mean_ms": 0.761,
+    "e2e_hotpath_p99_ms": 1.234,
+    "e2e_hotpath_median_ms": 0.720,
+    "e2e_centroid_mean_ms": 0.482,
+    "e2e_centroid_p99_ms": 0.780,
+    "e2e_recon_mean_ms": 0.194,
+    "e2e_recon_p99_ms": 0.320,
+    "e2e_dm_mean_ms": 0.085,
+    "e2e_dm_p99_ms": 0.140,
+    "centroid_fast_ms_per_frame": 0.450,
+    "centroid_refined_ms_per_frame": 0.890,
+    "openmp_1t_centroid_ms": 0.92,
+    "openmp_2t_centroid_ms": 0.48,
+    "openmp_4t_centroid_ms": 0.35,
+    "openmp_8t_centroid_ms": 0.32
+  }
+}
