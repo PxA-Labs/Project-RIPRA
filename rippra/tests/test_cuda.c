@@ -24,7 +24,7 @@ int main(void) {
     double *d_frame = NULL, *d_W = NULL, *d_coeffs = NULL, *d_dm = NULL;
     rippra_zonal_mesh mesh;
     rippra_modal_model model;
-    int rc, skip = 0;
+    int rc;
     cudaError_t cerr;
 
     printf("=== RIPRA CUDA Acceleration Test ===\n\n");
@@ -76,15 +76,20 @@ int main(void) {
     rc = rippra_cuda_centroid_init(&cal, w, h);
     if (rc != 0) {
         printf("SKIP: CUDA centroid init failed (no GPU?) — compile-only check\n");
+        free(cx); free(cy); free(dx); free(dy);
+        free(W_cpu); free(coeffs_cpu);
+        free(sh_flat); free(img);
+        rippra_zonal_free(&mesh);
+        rippra_modal_free(&model);
+        rippa_calibration_free(&cal);
         printf("\n=== CUDA Test Skipped ===\n");
-        skip = 1;
-        goto cleanup;
+        return 0;
     }
 
+    {
     rc = rippra_cuda_dm_init(&mesh);
     if (rc != 0) {
-        printf("ERROR: CUDA DM init failed\n");
-        goto cleanup;
+        printf("ERROR: CUDA DM init failed\n"); goto cleanup;
     }
 
     cerr = cudaMalloc(&d_frame, (size_t)w * h * sizeof(double));
@@ -122,8 +127,9 @@ int main(void) {
     /* Compare CPU vs GPU */
     printf("\n6. CPU vs GPU Comparison:\n\n");
 
+    double max_diff_W = 0.0, rms_W = 0.0, max_diff_c = 0.0, rms_c = 0.0;
+
     /* Wavefront phase comparison */
-    double max_diff_W = 0.0, rms_W = 0.0;
     for (int i = 0; i < mesh.nnodes; ++i) {
         double diff = fabs(W_cpu[i] - W_gpu[i]);
         if (diff > max_diff_W) max_diff_W = diff;
@@ -135,7 +141,6 @@ int main(void) {
     printf("     RMS diff:          %.2e m\n", rms_W);
 
     /* Zernike coefficients comparison */
-    double max_diff_c = 0.0, rms_c = 0.0;
     for (int i = 0; i < model.nmodes; ++i) {
         double diff = fabs(coeffs_cpu[i] - coeffs_gpu[i]);
         if (diff > max_diff_c) max_diff_c = diff;
@@ -158,10 +163,11 @@ cleanup:
     cudaFree(d_W);
     cudaFree(d_coeffs);
     cudaFree(d_dm);
-    rippra_cuda_centroid_free();
-    rippra_cuda_dm_free();
     free(W_gpu);
     free(coeffs_gpu);
+    }
+    rippra_cuda_centroid_free();
+    rippra_cuda_dm_free();
     free(cx); free(cy); free(dx); free(dy);
     free(W_cpu); free(coeffs_cpu);
     free(sh_flat); free(img);
@@ -169,9 +175,6 @@ cleanup:
     rippra_modal_free(&model);
     rippa_calibration_free(&cal);
 
-    if (skip) {
-        return 0;
-    }
     printf("\n=== CUDA Test Complete ===\n");
     return 0;
 }
