@@ -52,4 +52,15 @@ See the [README](../README.md#real-time-processing-performance-benchmarks) for t
 
 ## CI Benchmark Tracking
 
-The `benchmarks` CI job runs `benchmark_centroid`, `benchmark_openmp`, and `benchmark_e2e` on every push to main. Results are uploaded as build artifacts.
+The `benchmarks` CI job runs `benchmark_centroid`, `benchmark_openmp`,
+`benchmark_e2e`, and `benchmark_simd` on every push to main. Results are
+uploaded as build artifacts.
+
+**Latest run:** [performance-benchmarks artifact](
+https://github.com/PxA-Labs/Project-RIPRA/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+
+A regression check (`tools/check_benchmark_regression.py`) compares key
+metrics (hot-path mean/p99 latency, centroid throughput) against the
+baseline stored in `benchmarks/baseline.json`. The CI job fails if any
+metric exceeds the threshold (+20%). Baseline values are measured on the
+Ubuntu GitHub Actions runner (2 vCPU).
