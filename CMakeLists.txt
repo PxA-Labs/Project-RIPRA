@@ -28,9 +28,11 @@ set(RIPRA_SOURCES
   rippra/src/simd.c rippra/src/simd_avx2.c
 )
 
-# AVX2 compile flags for simd_avx2.c only
+# AVX2 compile flags for simd_avx2.c only (not on MSVC — runtime dispatch
+# already returns SSE; also, MSVC linker may promote SSE→VEX globally when
+# an AVX2-compiled .obj is linked, causing crashes in unrelated code).
 if(MSVC)
-  set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS /arch:AVX2)
+  # no /arch:AVX2 — dead code compiled without special flags
 else()
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()
