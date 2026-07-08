@@ -11,7 +11,7 @@
 #include "rippra/centroid.h"
 #include "rippra/la.h"
 #include "rippra/recon.h"
-#include "cuda/rippra_cuda.h"
+#include "../cuda/rippra_cuda.h"
 
 int main(void) {
     rippa_config cfg;
