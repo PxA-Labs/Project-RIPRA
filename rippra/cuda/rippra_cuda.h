@@ -22,6 +22,10 @@ int rippra_cuda_compute_centroids(const double *d_frame, int width, int height,
                                   const rippra_calibration *cal, const rippa_config *cfg,
                                   double *d_cx, double *d_cy);
 
+/* Compute centroid deltas (dx, dy) from centroids on GPU — separated for benchmarking */
+int rippra_cuda_compute_deltas(double *d_cx, double *d_cy, int nspots,
+                               double *d_dx, double *d_dy);
+
 /* Free GPU resources for centroiding */
 void rippra_cuda_centroid_free(void);
 

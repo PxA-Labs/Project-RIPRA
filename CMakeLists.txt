@@ -14,13 +14,11 @@ option(RIPRA_BUILD_BENCHMARKS  "Build benchmark executables"  OFF)
 # ---- Dependencies ----------------------------------------------------------
 find_package(OpenMP REQUIRED)
 
-if(UNIX)
-  include(CheckLanguage)
-  check_language(CUDA)
-  if(CMAKE_CUDA_COMPILER)
-    enable_language(CUDA)
-    add_compile_definitions(HAVE_CUDA)
-  endif()
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
+  add_compile_definitions(HAVE_CUDA)
 endif()
 
 # ---- Library --------------------------------------------------------------
@@ -85,4 +83,11 @@ if(RIPRA_BUILD_BENCHMARKS)
   target_link_libraries(benchmark_e2e PRIVATE ripra)
   set_target_properties(benchmark_e2e PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra/bin")
+
+  if(CMAKE_CUDA_COMPILER)
+    add_executable(benchmark_cuda_vs_cpu rippra/tests/benchmark_cuda_vs_cpu.cu)
+    target_link_libraries(benchmark_cuda_vs_cpu PRIVATE ripra)
+    set_target_properties(benchmark_cuda_vs_cpu PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra/bin")
+  endif()
 endif()
