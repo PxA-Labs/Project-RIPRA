@@ -185,6 +185,10 @@ jobs:
         working-directory: rippra
         run: python tools/reproduce_all.py
 
+      - name: Run temporal leakage audit
+        working-directory: rippra
+        run: python tests/test_split_leakage.py
+
   # ─── CUDA Build ───────────────────────────────────────
   cuda:
     name: CUDA Build Check

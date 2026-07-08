@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 # Add current directory to sys.path
 sys.path.append(os.path.dirname(__file__))
@@ -42,15 +42,10 @@ def main():
         print(" 1. FUTURE WAVEFRONT PREDICTION EVALUATION")
         print("="*80)
         
-        # Load dataset split
+        # Load dataset split (sequence-level to avoid temporal leakage)
         dataset = SHSequenceDataset(dataset_path, lookback=10, step=1, task='predict')
-        total_len = len(dataset)
-        train_len = int(0.8 * total_len)
-        val_len = int(0.1 * total_len)
-        test_len = total_len - train_len - val_len
-        _, _, test_set = random_split(
-            dataset, [train_len, val_len, test_len],
-            generator=torch.Generator().manual_seed(42)
+        _, _, test_set = SHSequenceDataset.split_by_sequence(
+            dataset, train_ratio=0.8, val_ratio=0.1, seed=42
         )
         test_loader = DataLoader(test_set, batch_size=128, shuffle=False)
         
@@ -101,13 +96,8 @@ def main():
         print("="*80)
         
         dataset = SHSequenceDataset(dataset_path, lookback=10, step=1, task='classify')
-        total_len = len(dataset)
-        train_len = int(0.8 * total_len)
-        val_len = int(0.1 * total_len)
-        test_len = total_len - train_len - val_len
-        _, _, test_set = random_split(
-            dataset, [train_len, val_len, test_len],
-            generator=torch.Generator().manual_seed(42)
+        _, _, test_set = SHSequenceDataset.split_by_sequence(
+            dataset, train_ratio=0.8, val_ratio=0.1, seed=42
         )
         test_loader = DataLoader(test_set, batch_size=128, shuffle=False)
         
@@ -150,13 +140,8 @@ def main():
         print("="*80)
         
         dataset = SHSequenceDataset(dataset_path, lookback=10, step=1, task='parameter')
-        total_len = len(dataset)
-        train_len = int(0.8 * total_len)
-        val_len = int(0.1 * total_len)
-        test_len = total_len - train_len - val_len
-        _, _, test_set = random_split(
-            dataset, [train_len, val_len, test_len],
-            generator=torch.Generator().manual_seed(42)
+        _, _, test_set = SHSequenceDataset.split_by_sequence(
+            dataset, train_ratio=0.8, val_ratio=0.1, seed=42
         )
         test_loader = DataLoader(test_set, batch_size=128, shuffle=False)
         
