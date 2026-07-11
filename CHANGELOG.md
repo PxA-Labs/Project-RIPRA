@@ -29,6 +29,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 - add benchmark regression tracking with baseline comparison (#23) ([#79](https://github.com/PxA-Labs/Project-RIPRA/pull/79))
 
 ### Maintenance
+- bump docker/login-action from 3 to 4 ([#85](https://github.com/PxA-Labs/Project-RIPRA/pull/85))
 - bump github/codeql-action from 3 to 4 ([#86](https://github.com/PxA-Labs/Project-RIPRA/pull/86))
 ## [0.4.0] — 2026-07-07
 
