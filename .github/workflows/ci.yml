@@ -205,7 +205,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc cmake libomp-dev
 
       - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           use-github-cache: false
           use-local-cache: false
