@@ -29,6 +29,7 @@ This file is auto-updated by a GitHub Action on every merged PR.
 - add benchmark regression tracking with baseline comparison (#23) ([#79](https://github.com/PxA-Labs/Project-RIPRA/pull/79))
 
 ### Maintenance
+- bump Jimver/cuda-toolkit from 0.2.35 to 0.2.36 ([#91](https://github.com/PxA-Labs/Project-RIPRA/pull/91))
 - bump github/codeql-action from 4.37.3 to 4.37.6 ([#92](https://github.com/PxA-Labs/Project-RIPRA/pull/92))
 - bump github/codeql-action from 4 to 4.37.3 ([#88](https://github.com/PxA-Labs/Project-RIPRA/pull/88))
 - bump actions/setup-python from 6 to 7 ([#87](https://github.com/PxA-Labs/Project-RIPRA/pull/87))
