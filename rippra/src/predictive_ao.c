@@ -181,8 +181,9 @@ void predictive_ao_slope_free(PredictiveAOSlopeState* state) {
 void predictive_ao_slope_push(PredictiveAOSlopeState* state,
                               const float* dx, const float* dy,
                               const int* mask, int nspots) {
-    if (nspots <= 0) return;
+    if (nspots <= 0 || nspots > PREDICTIVE_AO_MAX_NSPOTS) return;
     if (state->nspots == 0) state->nspots = nspots;
+    else if (nspots != state->nspots) return;
     int L = state->lookback;
     if (L <= 0) L = LSTM_LOOKBACK;
     if (state->frame_count < (size_t)L) {
@@ -279,7 +280,8 @@ int predictive_ao_complete_slopes(LSTMInference* model,
                                     const float* observed_dy,
                                     const int* mask, int nspots,
                                     float* out_dx, float* out_dy) {
-    if (!state || nspots <= 0 || !out_dx || !out_dy) return -1;
+    if (!state || nspots <= 0 || nspots > PREDICTIVE_AO_MAX_NSPOTS || !out_dx || !out_dy) return -1;
+    if (state->nspots > 0 && nspots != state->nspots) return -1;
 
     /* Update ring buffer with current partial observation */
     predictive_ao_slope_push(state, observed_dx, observed_dy, mask, nspots);
