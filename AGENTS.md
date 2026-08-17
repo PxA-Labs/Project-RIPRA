@@ -1,5 +1,11 @@
 # AGENTS.md — Project Memory
 
+## Slope-Domain Sequence Completion (AI Fallback, Issue #90)
+- End-to-end Python validation (`test_slope_completion.py`) confirms masked-RMSE ≤ 30% of spatial baseline, temporal leakage absence, correct gradient masking, and inference latency < 1 ms (ONNX RT CPU).
+- C API `predictive_ao_complete_slopes()` gracefully falls back to spatial nearest-neighbour interpolation if the ONNX Runtime model is unavailable or fails to load.
+- Tested physical constraints ensure the DM is not commanded into impossible geometries. Zernike projection drops high-order instability and per-spot stroke clamps to ±pitch/2.
+
+
 ## CI Pipeline
 - **Multiple jobs** (Linux C, Windows C, Python, CUDA, benchmarks) — all green
 - Linux/Windows: compile C library (`io`, `la`, `centroid`, `recon`, `rippra_api`, `simd`), build tests

@@ -146,10 +146,12 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--noise", type=float, default=0.1, help="Standard deviation of displacement noise in pixels")
     parser.add_argument("--out", type=str, default="data_ai/dataset.npz", help="Output filepath")
+    parser.add_argument("--masking", type=str, default="structured", choices=["none", "bernoulli", "structured", "mixed"], help="Observation masking schedule for slope-completion training")
+    parser.add_argument("--mask_clean_prob", type=float, default=0.15, help="Fraction of frames that are clean")
     args = parser.parse_args()
-    
+
     np.random.seed(args.seed)
-    
+
     # 1. Load config and spot coordinates
     print("Loading system configuration...")
     cfg = load_system_config("config/system.conf")
@@ -215,19 +217,81 @@ def main():
     displacements = np.zeros((args.samples, 2 * nspots))
     coefficients = np.zeros((args.samples, nmodes))
     D_r0_arr = np.zeros(args.samples)
-    
+    masks = np.ones((args.samples, 2 * nspots), dtype=np.float32)  # 1 = valid
+
+    # Spot positions for structured spatial masks (pixel coords, pupil-center normalised)
+    ref_cx = spots_df["ref_cx"].values
+    ref_cy = spots_df["ref_cy"].values
+    pupil_cx = ref_cx.mean()
+    pupil_cy = ref_cy.mean()
+    spot_xn = (ref_cx - pupil_cx) / (cfg["pupil_radius"] / cfg["camera_pixsize"])
+    spot_yn = -(ref_cy - pupil_cy) / (cfg["pupil_radius"] / cfg["camera_pixsize"])
+
     # Scale factor mapping coefficients in meters to displacements in pixels
     scale_factor = cfg["flength"] / cfg["camera_pixsize"]
-    
+
     # Define sequence lengths (default 1000 frames per sequence representing 1 second at 1000 Hz)
     seq_len = 1000
     n_seq = args.samples // seq_len
     if n_seq == 0:
         n_seq = 1
         seq_len = args.samples
-        
+
     print(f"  Configuration: {n_seq} sequences of length {seq_len} frames.")
-    
+
+    def generate_mask(rng, nspots, mode, density):
+        """Return a [2*nspots] mask (1=valid, 0=masked) for one frame."""
+        m = np.ones(2 * nspots, dtype=np.float32)
+        if mode == "none" or density <= 0:
+            return m
+        n_drop = int(np.clip(density * nspots, 1, nspots - 1))
+        if mode == "bernoulli":
+            drop_idx = rng.choice(nspots, size=n_drop, replace=False)
+        elif mode == "structured":
+            # Contiguous angular wedge on the pupil
+            theta0 = rng.uniform(0, 2 * np.pi)
+            theta_w = rng.uniform(np.pi / 4, np.pi)
+            theta = np.arctan2(spot_yn, spot_xn)
+            dtheta = np.mod(theta - theta0 + 2 * np.pi, 2 * np.pi)
+            in_wedge = dtheta < theta_w
+            # Rank by distance inside wedge and drop the closest ones to the centre
+            # (fog usually starts near the edge but we keep it general)
+            candidates = np.where(in_wedge)[0]
+            if len(candidates) < n_drop:
+                drop_idx = candidates
+            else:
+                drop_idx = rng.choice(candidates, size=n_drop, replace=False)
+        elif mode == "mixed":
+            if rng.rand() < 0.5:
+                return generate_mask(rng, nspots, "bernoulli", density)
+            else:
+                return generate_mask(rng, nspots, "structured", density)
+        else:
+            return m
+        # Apply drop to both x and y channels
+        m[drop_idx] = 0.0
+        m[drop_idx + nspots] = 0.0
+        return m
+
+    def pick_mask_schedule(rng, seq_len, clean_prob=0.15):
+        """Return a list of (mode, density) tuples for each frame of a sequence."""
+        # 15% clean, then mild / moderate / heavy / boundary regimes
+        regimes = [
+            ("none", 0.0),
+            ("bernoulli", 0.15),
+            ("structured", 0.25),
+            ("mixed", 0.45),
+            ("structured", 0.75),
+            ("mixed", 0.95),
+        ]
+        sched = []
+        for _ in range(seq_len):
+            if rng.rand() < clean_prob:
+                sched.append(("none", 0.0))
+            else:
+                sched.append(regimes[rng.randint(1, len(regimes))])
+        return sched
+
     frame_idx = 0
     for s in range(n_seq):
         # Turbulence strength for this sequence
@@ -245,46 +309,61 @@ def main():
         
         # Draw starting coefficients for the sequence
         a_rad = np.random.multivariate_normal(np.zeros(nmodes), reg_cov)
-        
+
+        # Build a masking schedule for this sequence
+        seq_sched = pick_mask_schedule(np.random, seq_len, clean_prob=args.mask_clean_prob) if args.masking != "none" else [("none", 0.0)] * seq_len
+
         for t in range(seq_len):
             if t > 0:
                 # AR(1) step: update Zernike coefficients with temporal correlation
                 epsilon = np.random.multivariate_normal(np.zeros(nmodes), reg_cov)
                 a_rad = rho * a_rad + np.sqrt(1.0 - rho * rho) * epsilon
-                
+
             # Convert to meters for physical slope mapping: a_m = a_rad * (lambda / 2pi)
             a_m = a_rad * (cfg["wavelength"] / (2.0 * np.pi))
-            
+
             # Calculate clean displacements in pixels
             clean_disp = Zprime.dot(a_m) * scale_factor
-            
+
             # Add noise
             noise = np.random.normal(0.0, args.noise, 2 * nspots)
             noisy_disp = clean_disp + noise
-            
+
+            # Generate observation mask for this frame
+            mode, density = seq_sched[t]
+            frame_mask = generate_mask(np.random, nspots, mode, density)
+
             displacements[frame_idx] = noisy_disp
             coefficients[frame_idx] = a_rad
             D_r0_arr[frame_idx] = D_r0
-            
+            masks[frame_idx] = frame_mask
+
             frame_idx += 1
             if frame_idx >= args.samples:
                 break
-                
+
         print(f"  Sequence {s + 1:02d}/{n_seq:02d} complete (D/r0={D_r0:.2f}, tau0={tau0*1000.0:.2f} ms).")
-        
+
     # 5. Save dataset
     out_dir = os.path.dirname(args.out)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-        
-    np.savez(args.out, 
-             displacements=displacements, 
-             coefficients=coefficients,
-             D_r0=D_r0_arr)
-             
+
+    save_args = dict(
+        displacements=displacements,
+        coefficients=coefficients,
+        D_r0=D_r0_arr
+    )
+    if args.masking != "none":
+        save_args["masks"] = masks
+
+    np.savez(args.out, **save_args)
+
     print(f"Successfully saved dataset to {args.out}!")
     print(f"  Inputs shape:  {displacements.shape}")
     print(f"  Targets shape: {coefficients.shape}")
+    if args.masking != "none":
+        print(f"  Masks shape:   {masks.shape} (mean valid = {masks.mean():.3f})")
 
 if __name__ == "__main__":
     import sys

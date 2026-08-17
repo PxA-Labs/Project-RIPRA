@@ -5,6 +5,7 @@
 #include "rippra/centroid.h"
 #include "rippra/la.h"
 #include "rippra/recon.h"
+#include "rippra/predictive_ao.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,13 @@
 #else
 #include <pthread.h>
 #endif
+
+/* Forward declarations for frame-quality gate helpers */
+static rippra_frame_quality stream_default_quality_gate(const int *mask, int nspots,
+                                                        const rippra_stream_result *r,
+                                                        void *user);
+static void stream_constrain_slopes(rippra_stream *s,
+                                    double *dx, double *dy, int nspots);
 
 /* ---- Internal ring buffer entry ----------------------------------------- */
 typedef struct {
@@ -64,6 +72,15 @@ struct rippra_stream {
     double *dx_history;        /* rolling history for r0/tau0 */
     double *dy_history;
     int     history_filled;
+
+    /* Dynamic signal routing (#93) */
+    rippra_quality_gate_fn quality_gate;
+    void                  *quality_gate_user;
+
+    /* Slope completion (#90) */
+    PredictiveAOSlopeState slope_state;
+    LSTMInference         *slope_model;
+    int                    slope_lookback;
 
     /* Synchronisation */
 #ifdef _WIN32
@@ -175,6 +192,10 @@ rippra_stream *rippra_stream_init(const rippa_config *cfg,
     s->dy_history = (double *)calloc((size_t)s->turb_nframes * nspots, sizeof(double));
     s->history_filled = 0;
 
+    /* Slope completion state */
+    s->slope_lookback = LSTM_LOOKBACK;
+    predictive_ao_slope_init(&s->slope_state, nspots, s->slope_lookback);
+
     s->next_frame_id = 1;
 
 #ifdef _WIN32
@@ -213,6 +234,13 @@ void rippra_stream_shutdown(rippra_stream *s)
     free(s->results);
     free(s->dx_history);
     free(s->dy_history);
+
+    /* Release slope-completion model if loaded */
+    if (s->slope_model) {
+        predictive_ao_unload(s->slope_model);
+        s->slope_model = NULL;
+    }
+    predictive_ao_slope_free(&s->slope_state);
 
     rippa_calibration_free(&s->cal);
     rippra_zonal_free(&s->mesh);
@@ -353,18 +381,75 @@ int rippra_stream_process(rippra_stream *s)
     int *mask = (int*)malloc(nspots * sizeof(int));
     if (mask) {
         rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy, mask);
-        double *tmp_dx = (double*)malloc(nspots * sizeof(double));
-        double *tmp_dy = (double*)malloc(nspots * sizeof(double));
-        if (tmp_dx && tmp_dy) {
-            stream_interpolate_lost_spots(r->dx, r->dy, mask, nspots, &s->cal, tmp_dx, tmp_dy);
-            memcpy(r->dx, tmp_dx, nspots * sizeof(double));
-            memcpy(r->dy, tmp_dy, nspots * sizeof(double));
-        }
-        free(tmp_dx); free(tmp_dy);
-        free(mask);
     } else {
         rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy, NULL);
     }
+
+    /* Step 2b: frame quality gate + AI fallback (#90) / spatial interpolation */
+    rippra_frame_quality quality = RIPPRA_FRAME_OK;
+    if (mask) {
+        rippra_quality_gate_fn gate = s->quality_gate ? s->quality_gate : stream_default_quality_gate;
+        quality = gate(mask, nspots, r, s->quality_gate_user);
+    }
+
+    if (quality == RIPPRA_FRAME_LOST) {
+        /* Hard fallback: zero slopes -> park DM via zero correction */
+        memset(r->dx, 0, nspots * sizeof(double));
+        memset(r->dy, 0, nspots * sizeof(double));
+    } else if (quality == RIPPRA_FRAME_DEGRADED) {
+        /* AI slope completion if a model is available */
+        int ai_rc = -1;
+        if (s->slope_model) {
+            float *fdx = (float*)malloc(nspots * sizeof(float));
+            float *fdy = (float*)malloc(nspots * sizeof(float));
+            float *fout_dx = (float*)malloc(nspots * sizeof(float));
+            float *fout_dy = (float*)malloc(nspots * sizeof(float));
+            if (fdx && fdy && fout_dx && fout_dy) {
+                for (int i = 0; i < nspots; ++i) {
+                    fdx[i] = (float)r->dx[i];
+                    fdy[i] = (float)r->dy[i];
+                }
+                ai_rc = predictive_ao_complete_slopes(s->slope_model, &s->slope_state,
+                                                       fdx, fdy, mask, nspots,
+                                                       fout_dx, fout_dy);
+                if (ai_rc == 0) {
+                    for (int i = 0; i < nspots; ++i) {
+                        r->dx[i] = (double)fout_dx[i];
+                        r->dy[i] = (double)fout_dy[i];
+                    }
+                }
+            }
+            free(fdx); free(fdy); free(fout_dx); free(fout_dy);
+        }
+        if (ai_rc != 0) {
+            /* Graceful fallback to spatial nearest-neighbour interpolation */
+            double *tmp_dx = (double*)malloc(nspots * sizeof(double));
+            double *tmp_dy = (double*)malloc(nspots * sizeof(double));
+            if (tmp_dx && tmp_dy) {
+                stream_interpolate_lost_spots(r->dx, r->dy, mask, nspots, &s->cal, tmp_dx, tmp_dy);
+                memcpy(r->dx, tmp_dx, nspots * sizeof(double));
+                memcpy(r->dy, tmp_dy, nspots * sizeof(double));
+            }
+            free(tmp_dx); free(tmp_dy);
+        }
+        /* Apply physical safety constraints regardless of completion path */
+        stream_constrain_slopes(s, r->dx, r->dy, nspots);
+    } else if (mask) {
+        /* OK frame: still push into slope buffer for temporal continuity,
+           then keep original deltas. */
+        float *fdx = (float*)malloc(nspots * sizeof(float));
+        float *fdy = (float*)malloc(nspots * sizeof(float));
+        if (fdx && fdy) {
+            for (int i = 0; i < nspots; ++i) {
+                fdx[i] = (float)r->dx[i];
+                fdy[i] = (float)r->dy[i];
+            }
+            predictive_ao_slope_push(&s->slope_state, fdx, fdy, mask, nspots);
+        }
+        free(fdx); free(fdy);
+    }
+
+    if (mask) free(mask);
 
     /* Step 3: zonal reconstruction */
     rippra_zonal_reconstruct(&s->mesh, r->dx, r->dy, &s->cfg, r->W);
@@ -456,4 +541,95 @@ void rippra_stream_set_turbulence_window(rippra_stream *s, int nframes)
     s->dy_history = (double *)calloc((size_t)nframes * nspots, sizeof(double));
     s->history_filled = 0;
     stream_unlock(s);
+}
+
+/* ---- Dynamic Signal Routing (#93) + AI fallback (#90) -------------------- */
+
+void rippra_stream_set_quality_gate(rippra_stream *s, rippra_quality_gate_fn fn, void *user)
+{
+    if (!s) return;
+    stream_lock(s);
+    s->quality_gate = fn;
+    s->quality_gate_user = user;
+    stream_unlock(s);
+}
+
+void rippra_stream_set_slope_model(rippra_stream *s, const char *onnx_path)
+{
+    if (!s || !onnx_path) return;
+    stream_lock(s);
+    if (s->slope_model) {
+        predictive_ao_unload(s->slope_model);
+        s->slope_model = NULL;
+    }
+    s->slope_model = predictive_ao_load_model(onnx_path);
+    if (s->slope_model) {
+        predictive_ao_model_set_geometry(s->slope_model, s->cal.nspots, s->slope_lookback);
+    }
+    stream_unlock(s);
+}
+
+/*
+ * Default quality gate: classify frame based on fraction of valid spots.
+ *   >= 80% valid  -> OK
+ *   20%-80% valid -> DEGRADED (use AI completion)
+ *   <  20% valid  -> LOST (park DM / hard fallback)
+ */
+static rippra_frame_quality stream_default_quality_gate(const int *mask, int nspots,
+                                                        const rippra_stream_result *r,
+                                                        void *user)
+{
+    (void)r; (void)user;
+    if (!mask || nspots <= 0) return RIPPRA_FRAME_LOST;
+    int valid = 0;
+    for (int i = 0; i < nspots; ++i) if (mask[i]) valid++;
+    double frac = (double)valid / (double)nspots;
+    if (frac >= 0.8) return RIPPRA_FRAME_OK;
+    if (frac >= 0.2) return RIPPRA_FRAME_DEGRADED;
+    return RIPPRA_FRAME_LOST;
+}
+
+/*
+ * Apply physical safety constraints to completed slopes:
+ *   1) Zernike projection onto the modal derivative basis
+ *   2) Per-spot stroke clamp to +/- pitch_px/2
+ */
+static void stream_constrain_slopes(rippra_stream *s,
+                                    double *dx, double *dy, int nspots)
+{
+    double pitch_px = s->cal.pitch_px;
+    if (pitch_px <= 0.0) pitch_px = s->cfg.pitch / s->cfg.camera_pixsize;
+    double limit = pitch_px * 0.5;
+
+    /* Zernike projection via modal model */
+    if (s->model.nmodes > 0 && s->model.Zprime && s->model.Zprime_pinv) {
+        double *coeffs = (double *)calloc(s->model.nmodes, sizeof(double));
+        if (coeffs) {
+            rippra_modal_reconstruct(&s->model, dx, dy, &s->cfg, coeffs);
+            /* Recompute physically admissible slopes from coefficients */
+            double *svec = (double *)malloc(2 * nspots * sizeof(double));
+            if (svec) {
+                memset(svec, 0, 2 * nspots * sizeof(double));
+                for (int k = 0; k < nspots; ++k) {
+                    double sumx = 0.0, sumy = 0.0;
+                    for (int m = 0; m < s->model.nmodes; ++m) {
+                        sumx += s->model.Zprime[k * s->model.nmodes + m] * coeffs[m];
+                        sumy += s->model.Zprime[(k + nspots) * s->model.nmodes + m] * coeffs[m];
+                    }
+                    dx[k] = sumx;
+                    dy[k] = sumy;
+                }
+                free(svec);
+            }
+            free(coeffs);
+        }
+    }
+
+    /* Stroke clamp */
+    for (int i = 0; i < nspots; ++i) {
+        if (dx[i] < -limit) dx[i] = -limit;
+        if (dx[i] >  limit) dx[i] =  limit;
+        if (dy[i] < -limit) dy[i] = -limit;
+        if (dy[i] >  limit) dy[i] =  limit;
+    }
 }

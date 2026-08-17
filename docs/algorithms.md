@@ -22,7 +22,8 @@ motivation, key formulas, and links to C source lines.
 12. [Linear Algebra Utilities](#12-linear-algebra-utilities)
 13. [Synthetic Data Generation](#13-synthetic-data-generation)
 14. [Architecture Choice Justification](#14-architecture-choice-justification)
-15. [References](#15-references)
+15. [Slope-Domain Sequence Completion (AI Fallback)](#15-slope-domain-sequence-completion-ai-fallback)
+16. [References](#16-references)
 
 ---
 
@@ -747,7 +748,157 @@ inference latency at frame rate, breaking the real-time requirement.
 
 ---
 
-## 15. References
+## 15. Slope-Domain Sequence Completion (AI Fallback)
+
+When the frame-quality gate ([stream.h](../../rippra/include/rippra/stream.h))
+classifies a frame as **DEGRADED** (20–80% of spots valid), the pipeline
+invokes an LSTM-based slope completion model to reconstruct the missing
+sub-aperture slopes from temporal context before passing them to the
+zonal/modal reconstructors.
+
+### 15.1 Data Model
+
+The per-spot slope vector at frame *t* is:
+
+```
+s_t = [Δx₁, Δy₁, …, Δxₙ, Δyₙ]ᵀ ∈ ℝ^{2N}
+```
+
+where *N* = `cal->nspots` (137 for the synthetic grid). The observation
+mask is `m_t ∈ {0,1}^{2N}` with `m_t[k] = 1` for a valid spot, already
+produced by `rippa_compute_deltas()` ([centroid.h](../../rippra/include/rippra/centroid.h)).
+
+The masked observation is:
+
+```
+s̃_t = m_t ⊙ s_t   (elementwise / Hadamard product)
+```
+
+### 15.2 Latent State-Space Model
+
+Slope dynamics are modelled as a latent linear-Gaussian AR(1) process
+(consistent with the Kolmogorov + Taylor frozen-flow AR(1) generator in
+[synthetic_shwfs.py](../../rippra/ml/synthetic_shwfs.py)):
+
+```
+z_t = A z_{t-1} + η_t,   η_t ~ N(0, Q)     (process noise)
+s_t = C z_t + ε_t,       ε_t ~ N(0, R)     (measurement noise)
+```
+
+Under linear-Gaussian assumptions the exact solution is a Kalman filter.
+However, real turbulence is nonlinear in the latent dynamics and the
+masking pattern is structured (spatially contiguous fog banks), so we
+use a neural amortized posterior instead.
+
+### 15.3 LSTM Amortized Posterior
+
+A recurrent encoder (`SlopeCompletionLSTM` in
+[sequence_models.py](../../rippra/ml/sequence_models.py)) amortizes the
+filtering distribution:
+
+```
+h_t = f_θ(h_{t-1}, s̃_t, m_t)
+ŝ_t = g_θ(h_t, m_t)
+```
+
+| Property | Value |
+|---|---|
+| Input per time step | `[s̃_t ∥ m_t]` → `4N` floats |
+| Context window | `L` past frames + current partial → `[L+1, 4N]` |
+| Hidden dimension | 128 |
+| Layers | 2 (LSTM) |
+| Output | `ŝ_t ∈ ℝ^{2N}` — complete slope vector |
+| Prior | Persistence (last-frame observed slopes) + learned residual |
+
+Mask-conditioning is built into the input: the model learns where it
+is allowed to be uncertain and propagates that through the recurrence.
+
+### 15.4 Loss Function
+
+**Masked reconstruction loss** (primary):
+
+```
+L_rec = [Σ_k (1-m_t[k]) · (ŝ_t[k] - s_t[k])²] / [Σ_k (1-m_t[k])]
+```
+
+Only missing entries contribute to the gradient; valid entries have
+zero gradient through `(1 - m_t[k]) = 0`.
+
+**Zernike-consistency regularizer** (enforces physical plausibility):
+
+```
+a_t = (Z′)⁺ ŝ_t          (pseudo-inverse, rcond = 1e-4)
+ŝ_t^Z = Z′ a_t
+L_zern = ||ŝ_t - ŝ_t^Z||²
+```
+
+This penalizes slope fields that cannot arise from a smooth Zernike
+expansion. The `ZernikeConsistencyLoss` module in
+[train_sequence.py](../../rippra/ml/train_sequence.py) registers `Z′`
+and `(Z′)⁺` as buffers.
+
+**Temporal smoothness regularizer** (Taylor frozen-flow prior):
+
+```
+L_tem = ||ŝ_t||² × 1e-6
+```
+
+**Total loss**:
+
+```
+L(θ) = L_rec + λ_zern · L_zern + λ_tem · L_tem
+```
+
+Default hyperparameters: `λ_zern = 1e-2`, `λ_tem = 1e-1`.
+
+### 15.5 Physical Constraint Enforcement
+
+After model inference, `stream_constrain_slopes()` in
+[stream.c](../../rippra/src/stream.c) applies two safety constraints:
+
+1. **Zernike projection**: reconstruct Zernike coefficients via
+   `rippra_modal_reconstruct()`, then recompute slopes from
+   `Z′ · coeffs` — this truncates modes beyond the rcond cutoff.
+
+2. **Stroke clamp**: per-spot limit
+   `|Δx[k]| ≤ pitch_px / 2`, `|Δy[k]| ≤ pitch_px / 2`
+   where `pitch_px ≈ 40.5 px`.
+
+### 15.6 Stream Integration
+
+The frame-quality gate in `rippra_stream_process()` dispatches:
+
+| Quality | Valid spots | Action |
+|---|---|---|
+| `RIPPRA_FRAME_OK` | ≥ 80% | Standard path; push into slope buffer |
+| `RIPPRA_FRAME_DEGRADED` | 20–80% | AI completion → spatial fallback → constraints |
+| `RIPPRA_FRAME_LOST` | < 20% | Zero slopes (park DM) |
+
+The C API `predictive_ao_complete_slopes()` in
+[predictive_ao.c](../../rippra/src/predictive_ao.c) manages the slope
+ring buffer and runs ONNX Runtime inference when `RIPRA_ONNXRT` is
+defined. Without the SDK, it returns `1` and the stream falls back to
+spatial nearest-neighbour interpolation.
+
+### 15.7 Masking Schedule (Training Data)
+
+The dataset generator ([generate_dataset.py](../../rippra/tools/generate_dataset.py))
+produces masked slope sequences covering:
+
+| Regime | Density | Mode |
+|---|---|---|
+| Clean | 0% dropout | `none` |
+| Mild | 15% spots | `bernoulli` |
+| Moderate | 25% spots | `structured` (angular wedge) |
+| Mixed | 45% spots | `mixed` (bernoulli + structured) |
+| Heavy | 75% spots | `structured` |
+| Boundary | 95% spots | `mixed` |
+
+15% of frames are clean to prevent the model from always expecting dropout.
+
+---
+
+## 16. References
 
 1. **Noll, R. J.** (1976). "Zernike polynomials and atmospheric turbulence."
    *J. Opt. Soc. Am.*, 66(3), 207–211.
@@ -781,6 +932,10 @@ inference latency at frame rate, breaking the real-time requirement.
    Transformers: A Survey." *arXiv:2009.06732*.
    — Attention scaling vs. sequence length.
 
+9. **Hochreiter, S. & Schmidhuber, J.** (1997). "Long Short-Term Memory."
+   *Neural Computation*, 9(8), 1735–1780.
+   — LSTM architecture used for slope completion.
+
 ---
 
-*Last updated: 2026-07-08*
+*Last updated: 2026-08-18*
