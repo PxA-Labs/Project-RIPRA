@@ -111,3 +111,56 @@ Designing and implementing a slope-domain sequence model that reconstructs missi
 - Reviewed and provided feedback on the existing LSTM predictive AO pipeline.
 - Contributed to the mathematical formulation in the project documentation.
 - Participated in architecture discussions for the umbrella AI/Radio fallback feature (#94).
+
+---
+
+## Appendix: Validation Test Output
+
+The following is the automated evaluation test suite output for the final slope completion model:
+
+```text
+=== Test 1: Synthetic Dataset Generation ===
+  PASS: Dataset shape
+  PASS: Masks shape
+  PASS: Masks contain zeros
+  PASS: Masks contain ones
+  PASS: Mask ratio reasonable
+
+=== Test 2: Windowed Dataset + Sequence Split ===
+  PASS: Windows shape
+  PASS: Targets shape
+  PASS: No sequence leakage
+
+=== Test 3: Training Convergence ===
+  PASS: Loss decreases
+  PASS: Loss is finite
+
+=== Test 4: Gradient Masking (Reconstruction Loss) ===
+  PASS: Gradients zero at valid entries (rec loss)
+  PASS: Gradients non-zero at masked entries
+
+=== Test 5: ONNX Export Round-Trip ===
+  PASS: ONNX file created
+  PASS: ONNX round-trip parity
+
+=== Test 6: RMSE vs Spatial Interpolation Baseline ===
+  Model RMSE:    0.5201
+  Baseline RMSE: 0.7419
+  Ratio:         70.11%
+  PASS: Model improves over baseline
+
+=== Test 7: Physical Constraint (Stroke Clamp) ===
+  PASS: Stroke clamp preserves shape
+  PASS: Clamp reduces max magnitude
+
+=== Test 8: Inference Latency ===
+  Mean: 4.392 ms, Median: 3.943 ms, p99: 11.768 ms
+  PASS: Inference < 5 ms (PyTorch CPU)
+
+  ONNX Runtime latency:
+  Mean: 2.164 ms, Median: 1.166 ms, p99: 5.655 ms
+
+==================================================
+  Results: 19/19 passed, 0 failed
+==================================================
+```
