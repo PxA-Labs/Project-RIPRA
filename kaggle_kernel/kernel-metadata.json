@@ -1,0 +1,17 @@
+{
+  "id": "shlokparekh08/ripra-slope-training",
+  "title": "RIPRA Slope Training",
+  "code_file": "train_script.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": "true",
+  "dataset_sources": [
+    "shlokparekh08/ripra-slope-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

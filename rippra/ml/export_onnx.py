@@ -6,6 +6,7 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(__file__))
 from models import WavefrontMLP, WavefrontCNN
+from sequence_models import SlopeCompletionLSTM
 from evaluate_inference import load_system_config
 
 def export_model(model, dummy_input, save_path, model_name, device='cpu'):
@@ -25,6 +26,7 @@ def export_model(model, dummy_input, save_path, model_name, device='cpu'):
         output_names=['output'],
         dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}},
         opset_version=17,
+        dynamo=False,
     )
     size_kb = os.path.getsize(save_path) / 1024
     print(f"  Saved: {fname} ({size_kb:.1f} KB)")
@@ -100,6 +102,19 @@ def main():
         lstm_model.load_state_dict(lstm_ckpt['model_state_dict'])
         lstm_dummy = torch.randn(1, 10, nmodes, dtype=torch.float32)  # lookback=10
         export_model(lstm_model, lstm_dummy, os.path.join(output_dir, "wavefront_lstm.onnx"), "WavefrontLSTM")
+
+    # 4. Export slope-completion LSTM
+    completion_path = os.path.join(checkpoint_dir, "best_sequence_complete_slopes.pt")
+    if os.path.exists(completion_path):
+        ckpt = torch.load(completion_path, map_location='cpu')
+        lookback = ckpt.get('lookback', 10)
+        nspots = ckpt.get('nspots', nspots)
+        comp_model = SlopeCompletionLSTM(nspots=nspots, hidden_dim=128, num_layers=2)
+        comp_model.load_state_dict(ckpt['model_state_dict'])
+        comp_dummy = torch.randn(1, lookback + 1, 4 * nspots, dtype=torch.float32)
+        export_model(comp_model, comp_dummy,
+                     os.path.join(output_dir, "slope_completion_lstm.onnx"),
+                     "SlopeCompletionLSTM")
 
     print(f"\nAll ONNX models saved to: {output_dir}/")
     print("Files:")
