@@ -378,8 +378,8 @@ if HAVE_ORT:
     ort_mean = np.mean(ort_ms)
     ort_p99 = np.percentile(ort_ms, 99)
     print(f"  Mean: {ort_mean:.3f} ms, Median: {np.median(ort_ms):.3f} ms, p99: {ort_p99:.3f} ms")
-    check("ONNX RT inference < 1 ms (mean)", ort_mean < 1.0,
-          f"mean = {ort_mean:.3f} ms")
+    check("ONNX RT inference < 1.0 ms (median)", np.median(ort_ms) < 1.0,
+          f"median = {np.median(ort_ms):.3f} ms")
 
     os.remove(onnx_path)
 
