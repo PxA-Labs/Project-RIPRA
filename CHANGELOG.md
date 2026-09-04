@@ -9,6 +9,14 @@ This file is auto-updated by a GitHub Action on every merged PR.
 
 ## [Unreleased]
 
+### Added
+- implement DM actuator safety stroke clamping and park fallback mechanism (closes [#95](https://github.com/PxA-Labs/Project-RIPRA/issues/95))
+- add unit test suite `test_dm_safety.c` covering stroke limits, saturation detection, and park triggering
+- add `dm_max_stroke` and `dm_park_threshold` to `system.conf` and `default.yaml`
+
+### Fixed
+- make PyTorch optional in `train_sequence.py` to allow `test_split_leakage.py` execution on environments without PyTorch
+
 ### Documentation
 - add Known Assumptions and Simplifications section to README and paper ([#84](https://github.com/PxA-Labs/Project-RIPRA/pull/84))
 - annotate config/default.yaml with parameter provenance and add override docs ([#83](https://github.com/PxA-Labs/Project-RIPRA/pull/83))
