@@ -37,6 +37,8 @@ static void default_config(rippa_config *cfg)
     cfg->dm_nact_x          = 12;
     cfg->dm_nact_y          = 12;
     cfg->coupling           = 0.15;
+    cfg->dm_max_stroke      = 0.0;
+    cfg->dm_park_threshold  = 0.30;
 }
 
 /* ---- config ------------------------------------------------------------ */
@@ -76,6 +78,8 @@ int rippa_config_load(rippa_config *cfg, const char *path)
         else if (!strcmp(key, "dm_nact_x"))         cfg->dm_nact_x = atoi(val);
         else if (!strcmp(key, "dm_nact_y"))         cfg->dm_nact_y = atoi(val);
         else if (!strcmp(key, "coupling"))          cfg->coupling = atof(val);
+        else if (!strcmp(key, "dm_max_stroke"))     cfg->dm_max_stroke = atof(val);
+        else if (!strcmp(key, "dm_park_threshold")) cfg->dm_park_threshold = atof(val);
     }
     fclose(fp);
     return 0;

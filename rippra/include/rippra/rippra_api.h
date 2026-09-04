@@ -48,7 +48,14 @@ typedef struct rippra_api_config {
     int    dm_nact_x;
     int    dm_nact_y;
     double coupling;
+    double dm_max_stroke;        /* ± actuator command bound (0 = disabled) */
+    double dm_park_threshold;    /* fraction of saturated actuators triggering park (0..1) */
 } rippra_api_config;
+
+/* ---- DM Safety Status Codes -------------------------------------------- */
+#define RIPPRA_DM_OK        0   /* all strokes within bounds */
+#define RIPPRA_DM_SATURATED 1   /* some actuators clamped */
+#define RIPPRA_DM_PARKED    2   /* park triggered: commands zeroed */
 
 RIPRA_API rippra_api_config rippra_default_config(void);
 RIPRA_API int rippra_config_load(rippra_api_config *cfg, const char *path);
@@ -115,6 +122,8 @@ RIPRA_API int rippra_dm_map(const double *target_phase,
                               void *cal,
                               const rippra_api_config *cfg,
                               double *out_commands);
+
+RIPRA_API int rippra_dm_park(double *dm_commands, int nnodes);
 
 /* ---- Closed-Loop AO Control -------------------------------------------- */
 RIPRA_API int rippra_dm_apply(const double *dm_commands,

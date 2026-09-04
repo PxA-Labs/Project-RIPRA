@@ -44,6 +44,8 @@ typedef struct {
     int     dm_nact_x;            /* actuators across X */
     int     dm_nact_y;            /* actuators across Y */
     double  coupling;             /* inter-actuator coupling coeff */
+    double  dm_max_stroke;        /* ± actuator stroke command limit (0 = disabled) */
+    double  dm_park_threshold;    /* fraction of saturated actuators triggering park (0..1) */
 } rippa_config;
 
 /*

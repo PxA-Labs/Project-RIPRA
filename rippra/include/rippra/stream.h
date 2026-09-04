@@ -53,6 +53,7 @@ typedef struct {
 
     /* DM command map */
     double  *dm_commands;        /* actuator strokes (nnodes)        */
+    int      dm_status;          /* RIPPRA_DM_OK / SATURATED / PARKED */
 } rippra_stream_result;
 
 /* ---- Pipeline handle ----------------------------------------------------- */

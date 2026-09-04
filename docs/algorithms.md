@@ -539,6 +539,26 @@ At convergence (`v = −C⁻¹·ϕ_target`), `residual ≈ 0`.
 See `rippra_dm_apply_impl()` at
 [recon.c:633–664](../../rippra/src/recon.c).
 
+### 10.4 DM Safety Clamping & Park Fallback
+
+To protect physical DM actuators from damage during bad seeing or centroiding instability:
+
+1. **Stroke Clamping**: Each actuator stroke $v_i$ is clamped to $\pm v_{\max}$ (`dm_max_stroke`):
+   $$v'_i = \max(-v_{\max}, \min(v_{\max}, v_i))$$
+   When $v_{\max} = 0$, clamping is disabled (pass-through).
+
+2. **Saturation Count & Park Threshold**: The fraction of saturated actuators is computed:
+   $$f_{\text{sat}} = \frac{1}{M} \sum_{i=1}^M \mathbb{I}(|v_i| > v_{\max})$$
+   If $f_{\text{sat}} > \text{park\_threshold}$ (default $0.30$), the wavefront is considered uncorrectable. The pipeline executes `rippra_dm_park()`, driving all actuators to zero stroke to prevent mirror damage.
+
+3. **Status Reporting**:
+   - `RIPPRA_DM_OK` (0): All commands within bounds.
+   - `RIPPRA_DM_SATURATED` (1): One or more actuators clamped, but within park tolerance.
+   - `RIPPRA_DM_PARKED` (2): Severe saturation triggered mirror parking (all zeros).
+
+See `rippra_dm_saturate()` and `rippra_dm_park_impl()` at
+[recon.c](../../rippra/src/recon.c).
+
 ---
 
 ## 11. Closed-Loop AO Control

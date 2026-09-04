@@ -519,6 +519,41 @@ double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series
     return tau0;
 }
 
+/* ---- DM Safety & Park ---------------------------------------------------- */
+
+int rippra_dm_park_impl(double *dm_commands, int nnodes) {
+    if (!dm_commands || nnodes <= 0) return -1;
+    memset(dm_commands, 0, (size_t)nnodes * sizeof(double));
+    return 0;
+}
+
+int rippra_dm_saturate(double *dm_commands, int nnodes, const rippa_config *cfg) {
+    if (!dm_commands || nnodes <= 0 || !cfg) return -1;
+    if (cfg->dm_max_stroke <= 0.0) {
+        return RIPPRA_DM_OK; /* disabled / passthrough */
+    }
+
+    double max_stroke = cfg->dm_max_stroke;
+    int n_sat = 0;
+    for (int i = 0; i < nnodes; ++i) {
+        if (dm_commands[i] > max_stroke) {
+            dm_commands[i] = max_stroke;
+            n_sat++;
+        } else if (dm_commands[i] < -max_stroke) {
+            dm_commands[i] = -max_stroke;
+            n_sat++;
+        }
+    }
+
+    double park_thresh = (cfg->dm_park_threshold > 0.0) ? cfg->dm_park_threshold : 0.30;
+    if ((double)n_sat / (double)nnodes > park_thresh) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return RIPPRA_DM_PARKED;
+    }
+
+    return (n_sat > 0) ? RIPPRA_DM_SATURATED : RIPPRA_DM_OK;
+}
+
 /* ---- DM Command Map ------------------------------------------------------ */
 
 int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands) {
@@ -577,6 +612,8 @@ int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zona
     
     free(C);
     free(rhs);
+
+    rippra_dm_saturate(dm_commands, nnodes, cfg);
     return 0;
 }
 
@@ -645,6 +682,7 @@ int rippra_closed_loop_step_impl(const double *measured_phase, int nnodes,
     for (int i = 0; i < nnodes; ++i) {
         dm_commands[i] += gain * delta_v[i];
     }
+    rippra_dm_saturate(dm_commands, nnodes, cfg);
     
     /* Compute residual: residual = measured_phase + C * dm_commands
        At convergence, C*dm_commands ≈ -measured_phase, so residual ≈ 0. */

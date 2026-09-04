@@ -2,11 +2,30 @@
 import os
 import argparse
 import numpy as np
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, Subset
+try:
+    import torch
+    import torch.nn as nn
+    from torch.utils.data import Dataset, DataLoader, Subset
+    HAVE_TORCH = True
+except ImportError:
+    HAVE_TORCH = False
+    class Dataset:
+        pass
+    class Subset:
+        def __init__(self, dataset, indices):
+            self.dataset = dataset
+            self.indices = indices
+        def __len__(self):
+            return len(self.indices)
+        def __getitem__(self, idx):
+            return self.dataset[self.indices[idx]]
 
-from sequence_models import WavefrontLSTM, TurbulenceClassifierLSTM, TurbulenceParameterEstimator
+try:
+    from sequence_models import WavefrontLSTM, TurbulenceClassifierLSTM, TurbulenceParameterEstimator
+except (ImportError, NameError):
+    WavefrontLSTM = None
+    TurbulenceClassifierLSTM = None
+    TurbulenceParameterEstimator = None
 
 def check_split_leakage(dataset, train_indices, val_indices, test_indices):
     """
