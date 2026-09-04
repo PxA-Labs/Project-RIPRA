@@ -25,7 +25,7 @@ endif()
 set(RIPRA_SOURCES
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
-  rippra/src/simd.c
+  rippra/src/simd.c rippra/src/predictive_ao.c
 )
 
 # simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
