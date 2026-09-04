@@ -194,6 +194,10 @@ jobs:
         working-directory: rippra
         run: python tests/test_split_leakage.py
 
+      - name: Run slope completion validation
+        working-directory: rippra
+        run: python ml/test_slope_completion.py
+
   # ─── CUDA Build ───────────────────────────────────────
   cuda:
     name: CUDA Build Check

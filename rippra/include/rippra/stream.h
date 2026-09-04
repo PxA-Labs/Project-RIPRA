@@ -124,6 +124,33 @@ const rippra_stream_result *rippra_stream_process_one(rippra_stream *s,
  */
 void rippra_stream_set_turbulence_window(rippra_stream *s, int nframes);
 
+/*
+ * Frame quality classification used by the Dynamic Signal Routing gate (#93).
+ */
+typedef enum {
+    RIPPRA_FRAME_OK = 0,
+    RIPPRA_FRAME_DEGRADED = 1,  /* partial signal loss: use AI slope completion */
+    RIPPRA_FRAME_LOST = 2       /* total loss / hard fallback: park DM */
+} rippra_frame_quality;
+
+/*
+ * Set a user-provided quality gate callback.  Called every process step after
+ * centroiding.  The callback receives the raw mask (nspots ints, 1=valid) and
+ * returns the quality classification.
+ */
+typedef rippra_frame_quality (*rippra_quality_gate_fn)(const int *mask, int nspots,
+                                                        const rippra_stream_result *r,
+                                                        void *user);
+void rippra_stream_set_quality_gate(rippra_stream *s, rippra_quality_gate_fn fn, void *user);
+
+/*
+ * Set the ONNX Runtime slope-completion model path.  If the model can be
+ * loaded, DEGRADED frames are repaired by predictive_ao_complete_slopes() before
+ * reconstruction.  If loading fails or the model is unavailable, the pipeline
+ * falls back to spatial nearest-neighbour interpolation.
+ */
+void rippra_stream_set_slope_model(rippra_stream *s, const char *onnx_path);
+
 #ifdef __cplusplus
 }
 #endif

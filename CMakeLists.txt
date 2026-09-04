@@ -25,7 +25,7 @@ endif()
 set(RIPRA_SOURCES
   rippra/src/centroid.c rippra/src/recon.c rippra/src/io.c
   rippra/src/la.c rippra/src/stream.c rippra/src/rippra_api.c
-  rippra/src/simd.c
+  rippra/src/simd.c rippra/src/predictive_ao.c
 )
 
 # simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
@@ -85,6 +85,7 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
   ripra_add_test(test_simd           rippra/tests/test_simd.c)
+  ripra_add_test(test_slope_completion rippra/tests/test_slope_completion.c)
 
   # CUDA test: compile check (requires GPU to actually run; CI runs
   # continue-on-error).  Mark .c as CUDA so nvcc compiles it.
