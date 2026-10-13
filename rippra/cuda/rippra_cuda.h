@@ -8,6 +8,16 @@
 #include "rippra/centroid.h"
 #include "rippra/recon.h"
 
+/* DM map status returned through rippra_cuda_dm_map_ex(). */
+#ifndef RIPPRA_DM_OK
+#define RIPPRA_DM_OK        0
+#endif
+#ifndef RIPPRA_DM_SATURATED
+#define RIPPRA_DM_SATURATED 1
+#endif
+#ifndef RIPPRA_DM_PARKED
+#define RIPPRA_DM_PARKED    2
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,7 +63,20 @@ int rippra_cuda_modal_reconstruct(const double *d_dx, const double *d_dy,
                                   const rippa_config *cfg,
                                   double *d_coeffs);
 
-/* Compute DM commands on GPU */
+/*
+ * Compute DM commands using the authoritative CPU solver through an explicit
+ * device-to-host/host-to-device fallback.  d_target_phase and
+ * d_dm_commands are device pointers; out_status is a host pointer.  Return
+ * zero for a valid map, including saturated or parked results, and a
+ * negative value for an error.  Failed maps clear d_dm_commands when it can
+ * be safely addressed.
+ */
+int rippra_cuda_dm_map_ex(const double *d_target_phase, int nnodes,
+                          const rippra_zonal_mesh *mesh,
+                          const rippa_config *cfg,
+                          double *d_dm_commands, int *out_status);
+
+/* Compatibility wrapper; equivalent to rippra_cuda_dm_map_ex(..., NULL). */
 int rippra_cuda_dm_map(const double *d_target_phase, int nnodes,
                        const rippra_zonal_mesh *mesh,
                        const rippa_config *cfg,
@@ -67,7 +90,7 @@ void rippra_cuda_dm_free(void);
 
 /* ---- Combined Pipeline ---- */
 
-/* Run full GPU pipeline: centroid → deltas → zonal recon → modal recon → DM map */
+/* Run full GPU pipeline without exposing the DM safety status. */
 int rippra_cuda_full_pipeline(const double *d_frame, int width, int height,
                               const rippra_calibration *cal,
                               const rippa_config *cfg,
@@ -75,6 +98,15 @@ int rippra_cuda_full_pipeline(const double *d_frame, int width, int height,
                               const rippra_modal_model *model,
                               double *d_W, double *d_coeffs,
                               double *d_dm_commands);
+
+/* Status-bearing full-pipeline variant. */
+int rippra_cuda_full_pipeline_ex(const double *d_frame, int width, int height,
+                                 const rippra_calibration *cal,
+                                 const rippa_config *cfg,
+                                 const rippra_zonal_mesh *mesh,
+                                 const rippra_modal_model *model,
+                                 double *d_W, double *d_coeffs,
+                                 double *d_dm_commands, int *out_status);
 
 /* ---- Utility ---- */
 

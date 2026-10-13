@@ -36,6 +36,8 @@ typedef struct rippra_api_config {
     int    dm_nact_x;       // DM actuators in X
     int    dm_nact_y;       // DM actuators in Y
     double coupling;        // DM influence coupling
+    double dm_max_stroke;   // +/- actuator command bound (0 = disabled)
+    double dm_park_threshold; // saturated fraction that triggers park (0..1)
 } rippra_api_config;
 ```
 
@@ -60,6 +62,9 @@ Parse system configuration from a `system.conf` file.
 |-----------|-------------|
 | `cfg`     | Output config struct |
 | `path`    | Path to config file (e.g. `"config/system.conf"`) |
+
+The appended DM safety fields are part of the 3.0.0 ABI. Consumers using the
+old configuration layout must rebuild against the 3.x header and library.
 
 ### Calibration
 
@@ -273,6 +278,35 @@ int rippra_dm_map(const double *target_phase,
 ```
 
 Compute DM actuator commands from a target phase.
+
+The safety layer clamps finite commands to `[-dm_max_stroke, +dm_max_stroke]`
+when `dm_max_stroke > 0`. If the fraction of commands that would be clamped
+strictly exceeds `dm_park_threshold`, all commands are zeroed instead. A
+non-finite command also parks the vector. Use `rippra_dm_map_ex` when the
+caller must distinguish `RIPPRA_DM_OK`, `RIPPRA_DM_SATURATED`, and
+`RIPPRA_DM_PARKED`.
+
+#### `rippra_dm_map_ex`
+
+```c
+int rippra_dm_map_ex(const double *target_phase,
+                     int nnodes,
+                     void *cal,
+                     const rippra_api_config *cfg,
+                     double *out_commands,
+                     int *out_status);
+```
+
+This is the status-bearing form of `rippra_dm_map`. It returns zero for a
+valid map, including saturation or parking, and a negative value for invalid
+input or invalid safety configuration. `out_status` receives
+`RIPPRA_DM_OK` (0), `RIPPRA_DM_SATURATED` (1), `RIPPRA_DM_PARKED` (2), or
+`RIPPRA_DM_ERROR` (-1).
+
+`rippra_dm_saturate` applies the same policy to an existing command vector and
+returns the number of unsafe entries. `rippra_dm_park` explicitly zeros a
+command vector. The appended safety fields make this a 3.0.0 ABI; consumers
+must rebuild old clients against the 3.x header and library.
 
 | Parameter      | Description |
 |----------------|-------------|

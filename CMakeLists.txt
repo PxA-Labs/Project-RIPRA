@@ -85,12 +85,20 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
   ripra_add_test(test_simd           rippra/tests/test_simd.c)
+  ripra_add_test(test_dm_safety      rippra/tests/test_dm_safety.c)
 
   # CUDA test: compile check (requires GPU to actually run; CI runs
   # continue-on-error).  Mark .c as CUDA so nvcc compiles it.
   if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
     set_source_files_properties(rippra/tests/test_cuda.c PROPERTIES LANGUAGE CUDA)
     ripra_add_test(test_cuda rippra/tests/test_cuda.c)
+
+    add_executable(test_cuda_dm_safety rippra/tests/test_cuda_dm_safety.cu)
+    target_link_libraries(test_cuda_dm_safety PRIVATE ripra)
+    add_test(NAME test_cuda_dm_safety COMMAND test_cuda_dm_safety)
+    set_tests_properties(test_cuda_dm_safety PROPERTIES
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra"
+      SKIP_RETURN_CODE 77)
   endif()
 endif()
 

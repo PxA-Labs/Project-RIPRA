@@ -10,7 +10,7 @@
 #include <string.h>
 #include <math.h>
 
-#define RIPRA_VERSION "2.0.0"
+#define RIPRA_VERSION "3.0.0"
 
 static void api_cfg_to_internal(const rippra_api_config *src, rippa_config *dst)
 {
@@ -30,6 +30,8 @@ static void api_cfg_to_internal(const rippra_api_config *src, rippa_config *dst)
     dst->dm_nact_x         = src->dm_nact_x;
     dst->dm_nact_y         = src->dm_nact_y;
     dst->coupling          = src->coupling;
+    dst->dm_max_stroke     = src->dm_max_stroke;
+    dst->dm_park_threshold = src->dm_park_threshold;
 }
 
 RIPRA_API const char* rippra_version(void) { return RIPRA_VERSION; }
@@ -53,6 +55,8 @@ RIPRA_API rippra_api_config rippra_default_config(void)
     c.dm_nact_x          = 12;
     c.dm_nact_y          = 12;
     c.coupling           = 0.15;
+    c.dm_max_stroke      = 0.0;
+    c.dm_park_threshold  = 0.30;
     return c;
 }
 
@@ -77,6 +81,8 @@ RIPRA_API int rippra_config_load(rippra_api_config *cfg, const char *path)
     cfg->dm_nact_x          = internal.dm_nact_x;
     cfg->dm_nact_y          = internal.dm_nact_y;
     cfg->coupling           = internal.coupling;
+    cfg->dm_max_stroke      = internal.dm_max_stroke;
+    cfg->dm_park_threshold  = internal.dm_park_threshold;
     return 0;
 }
 
@@ -318,20 +324,54 @@ RIPRA_API double rippra_compute_tau0(const double *dx_series,
     return rippra_compute_tau0_impl(dx_series, dy_series, nframes, nspots, frame_rate);
 }
 
-/* ---- DM Mapping -------------------------------------------------------- */
+/* ---- DM Safety & Mapping ----------------------------------------------- */
+
+RIPRA_API int rippra_dm_park(double *dm_commands, int nnodes)
+{
+    return rippra_dm_park_impl(dm_commands, nnodes);
+}
+
+RIPRA_API int rippra_dm_saturate(double *dm_commands, int nnodes,
+                                const rippra_api_config *cfg, int *out_status)
+{
+    if (out_status) *out_status = RIPPRA_DM_ERROR;
+    if (!cfg) {
+        if (dm_commands && nnodes > 0) rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
+    }
+    rippa_config internal;
+    api_cfg_to_internal(cfg, &internal);
+    return rippra_dm_saturate_impl(dm_commands, nnodes, &internal, out_status);
+}
+
 RIPRA_API int rippra_dm_map(const double *target_phase, int nnodes,
                               void *cal_ptr,
                               const rippra_api_config *cfg,
                               double *out_commands)
 {
+    return rippra_dm_map_ex(target_phase, nnodes, cal_ptr, cfg,
+                            out_commands, NULL);
+}
+
+RIPRA_API int rippra_dm_map_ex(const double *target_phase, int nnodes,
+                               void *cal_ptr,
+                               const rippra_api_config *cfg,
+                               double *out_commands,
+                               int *out_status)
+{
     api_calibration *cal = (api_calibration*)cal_ptr;
-    (void)cfg;
+    if (out_status) *out_status = RIPPRA_DM_ERROR;
+    if (out_commands && nnodes > 0) rippra_dm_park_impl(out_commands, nnodes);
+    if (!cal || !cfg) return -1;
     if (!cal->zmesh_ready) {
         int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
         if (ret != 0) return ret;
         cal->zmesh_ready = 1;
     }
-    return rippra_dm_map_impl(target_phase, nnodes, &cal->zmesh, &cal->cfg, out_commands);
+    rippa_config internal;
+    api_cfg_to_internal(cfg, &internal);
+    return rippra_dm_map_ex_impl(target_phase, nnodes, &cal->zmesh,
+                                 &internal, out_commands, out_status);
 }
 
 /* ---- Closed-Loop AO Control -------------------------------------------- */
