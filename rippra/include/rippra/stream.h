@@ -28,6 +28,12 @@ extern "C" {
 /* ---- Constants ----------------------------------------------------------- */
 #define RIPPRA_STREAM_MAX_FRAMES 256   /* circular buffer capacity */
 #define RIPPRA_STREAM_NUM_BUFS     2   /* ping-pong frame buffers   */
+/* ---- Frame quality status ----------------------------------------------- */
+typedef enum {
+    RIPPRA_FRAME_NOMINAL = 0,
+    RIPPRA_FRAME_DEGRADED = 1,
+    RIPPRA_FRAME_LOST = 2
+} rippra_frame_status;
 
 /* ---- Per-frame result ---------------------------------------------------- */
 typedef struct {
@@ -38,7 +44,10 @@ typedef struct {
     double  *cx, *cy;
     double  *dx, *dy;
     int      nspots;
-
+    double *spot_mass;       /* integrated intensity per spot */
+    int *spot_mask;          /* 1 = valid centroid/mass, 0 = invalid */
+    double quality;          /* frame quality score in [0, 1] */
+    rippra_frame_status status;
     /* zonal reconstruction */
     double  *W;                  /* phase heights (nnodes)           */
     int      nnodes;
@@ -97,8 +106,12 @@ int rippra_stream_ready(rippra_stream *s);
 /* ---- Frame consumers (call from processing & output threads) ------------- */
 
 /* Process the next frame from the ring buffer.
- *  Calls centroiding + zonal + modal reconstruction.
- *  Returns 0 on success, -1 if no frame pending.
+ *  Calls centroiding and routes the frame through the quality gate before
+ *  zonal/modal reconstruction and DM mapping.  A degraded frame uses the
+ *  built-in nearest-neighbour interpolation fallback.  A lost frame skips
+ *  reconstruction and returns zero phase, coefficients, and DM commands.
+ *  Returns 0 on success, -1 if no frame is pending, or -2 if the result
+ *  queue is full (the input remains pending in that case).
  *  The result is stored internally and can be retrieved with dequeue.
  */
 int rippra_stream_process(rippra_stream *s);

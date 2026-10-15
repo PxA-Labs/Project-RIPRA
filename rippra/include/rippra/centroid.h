@@ -36,11 +36,28 @@ typedef struct rippra_subap {
 typedef struct rippra_calibration {
     rippra_subap *subaps;    /* array of nspots sub-aperture descriptors */
     int nspots;             /* number of active sub-apertures          */
+    /* Reference statistics captured from the calibration frame.  These are
+     * owned by the calibration object and are optional for old callers that
+     * construct rippra_calibration manually. */
+    double *ref_mass;
+    double *ref_background_mean;
+    double *ref_background_std;
+    double *ref_snr;
+    double *ref_second_moment;
     double pupil_cx;        /* pupil centre X (pixels)                 */
     double pupil_cy;        /* pupil centre Y (pixels)                 */
     int width, height;      /* frame dimensions                        */
     double pitch_px;        /* estimated lenslet pitch in pixels        */
 } rippra_calibration;
+
+/* Per-frame statistics used by the streaming quality gate. */
+typedef struct rippra_spot_metrics {
+    double mass;
+    double background_mean;
+    double background_std;
+    double second_moment;
+    double signal_mean;
+} rippra_spot_metrics;
 
 /*
  * Calibrate the sub-aperture grid from a reference (flat) frame.
@@ -78,6 +95,24 @@ int rippa_compute_centroids(const double *frame, int width, int height,
                             const rippra_calibration *cal,
                             const rippa_config *cfg,
                             double *cx, double *cy);
+
+/*
+ * Compute centroids and return integrated intensity for each spot.
+ * mass may be NULL if the caller does not need intensity values.
+ */
+int rippa_compute_centroids_with_mass(
+    const double *frame, int width, int height,
+    const rippra_calibration *cal,
+    const rippa_config *cfg,
+    double *cx, double *cy, double *mass);
+
+/* Compute centroids and the statistics used by the frame-quality gate.  The
+ * metrics array may be NULL when only centroids are required. */
+int rippa_compute_centroids_with_metrics(
+    const double *frame, int width, int height,
+    const rippra_calibration *cal,
+    const rippa_config *cfg,
+    double *cx, double *cy, rippra_spot_metrics *metrics);
 
 /*
  * Compute deltas (spot deviations) from reference centroids.

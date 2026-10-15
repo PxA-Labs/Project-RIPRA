@@ -37,6 +37,8 @@ typedef struct {
     /* centroiding */
     double  thresh_binary;        /* 0..1 relative */
     double  centroid_percent;     /* 0..1 relative */
+    double quality_soft;           /* threshold for nominal-quality frames */
+    double quality_hard;           /* below this threshold, frame is LOST */
     int     coarse_grid_radius;   /* pixels     */
     /* reconstruction */
     int     zernike_nmax;         /* max radial order */
@@ -45,6 +47,13 @@ typedef struct {
     int     dm_nact_y;            /* actuators across Y */
     double  coupling;             /* inter-actuator coupling coeff */
 } rippa_config;
+
+/* Validate configuration values used by the C processing pipeline.
+ * Returns 0 when the configuration is usable, or a negative error code.
+ * In particular, quality_hard must be in [0, 1), and strictly less than
+ * quality_soft, which must be in (0, 1].
+ */
+int rippa_config_validate(const rippa_config *cfg);
 
 /*
  * Parse a .conf file. Returns 0 on success. Unknown keys are ignored.

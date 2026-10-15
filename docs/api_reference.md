@@ -144,6 +144,24 @@ Compute spot centroid displacements from an aberrated frame.
 | `out_dy`   | Output Y displacements (nspots doubles) |
 | `out_mask` | Output validity mask (nspots ints; non-zero = valid) |
 
+## Streaming frame-quality gate
+
+The low-level streaming API is declared in `rippra/include/rippra/stream.h`.
+Each dequeued `rippra_stream_result` contains `quality` in `[0, 1]`, a
+`rippra_frame_status`, per-spot `spot_mass`, and the raw `spot_mask`.
+
+`RIPPRA_FRAME_NOMINAL` runs normal reconstruction and DM mapping.
+`RIPPRA_FRAME_DEGRADED` uses the built-in nearest-neighbour interpolation for
+invalid centroid measurements before reconstruction. `RIPPRA_FRAME_LOST`
+skips reconstruction and returns explicitly zeroed phase, modal, and DM
+arrays. See [frame_quality_gate.md](frame_quality_gate.md) for the score
+components, calibration reference statistics, thresholds, and limitations.
+
+The existing centroid and stream function signatures remain compatible. The
+stream owns its copied calibration and result buffers; result pointers remain
+valid until their result slot is reused. The built-in fallback has no callback
+ownership or user-threading contract because it does not accept user data.
+
 ### Zonal Reconstruction
 
 #### `rippra_reconstruct_zonal`

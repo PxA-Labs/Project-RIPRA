@@ -180,50 +180,6 @@ static int detect_spots(const double *frame, int w, int h, double threshold,
 /* Mirrors MATLAB centroid.m: pixel < level set to 0, then weighted mean.   */
 /* Returns centroid in window-local coords (0-based); sets *mass.           */
 /* ----------------------------------------------------------------------- */
-static void window_minmax(const double *frame, int w,
-                          int col_min, int col_max, int row_min, int row_max,
-                          double *out_min, double *out_max)
-{
-    double mn = 1e18, mx = -1e18;
-    for (int j = row_min; j <= row_max; ++j) {
-        const double *row = frame + (size_t)j * w;
-        for (int i = col_min; i <= col_max; ++i) {
-            double v = row[i];
-            if (v < mn) mn = v;
-            if (v > mx) mx = v;
-        }
-    }
-    *out_min = mn;
-    *out_max = mx;
-}
-
-static void tcog_window(const double *frame, int w,
-                        int col_min, int col_max, int row_min, int row_max,
-                        double level,
-                        double *out_cx, double *out_cy, double *out_mass)
-{
-    double sx = 0.0, sy = 0.0, m = 0.0;
-    int i, j;
-    for (j = row_min; j <= row_max; ++j) {
-        const double *row = frame + (size_t)j * w;
-        for (i = col_min; i <= col_max; ++i) {
-            double v = row[i];
-            if (v < level) continue;
-            sx += (double)i * v;
-            sy += (double)j * v;
-            m += v;
-        }
-    }
-    if (m > 1e-9) {
-        *out_cx = sx / m;
-        *out_cy = sy / m;
-    } else {
-        *out_cx = NAN;
-        *out_cy = NAN;
-    }
-    *out_mass = m;
-}
-
 /* Combined pass: compute min/max AND run TCoG in a single window scan.
    Dispatches to SIMD-accelerated path when AVX2 is available. */
 static void tcog_window_fast(const double *frame, int w,
@@ -233,6 +189,71 @@ static void tcog_window_fast(const double *frame, int w,
 {
     rippra_simd_tcog_window_fast(frame, w, col_min, col_max, row_min, row_max,
                                  centroid_percent, out_cx, out_cy, out_mass);
+}
+
+/* Compute the non-centroid statistics for one already-bounded window.  The
+ * threshold is deliberately the same relative min/max threshold used by the
+ * TCoG kernel.  Background statistics use pixels below that threshold and
+ * the shape statistic is the intensity-weighted radial second moment of the
+ * accepted pixels. */
+static void compute_window_metrics(const double *frame, int w,
+                                   int col_min, int col_max,
+                                   int row_min, int row_max,
+                                   double centroid_percent,
+                                   double cx, double cy,
+                                   rippra_spot_metrics *out)
+{
+    double mn = 1e18, mx = -1e18;
+    double bg_sum = 0.0, bg_sum2 = 0.0;
+    double signal_sum = 0.0, moment_sum = 0.0;
+    int bg_count = 0, signal_count = 0;
+
+    memset(out, 0, sizeof(*out));
+    for (int row = row_min; row <= row_max; ++row) {
+        const double *pixels = frame + (size_t)row * w;
+        for (int col = col_min; col <= col_max; ++col) {
+            double value = pixels[col];
+            if (!isfinite(value)) continue;
+            if (value < mn) mn = value;
+            if (value > mx) mx = value;
+        }
+    }
+
+    if (mn == 1e18 || mx == -1e18) return;
+    double level = mn + centroid_percent * (mx - mn);
+    for (int row = row_min; row <= row_max; ++row) {
+        const double *pixels = frame + (size_t)row * w;
+        for (int col = col_min; col <= col_max; ++col) {
+            double value = pixels[col];
+            if (!isfinite(value)) continue;
+            if (value >= level) {
+                signal_sum += value;
+                signal_count++;
+                if (isfinite(cx) && isfinite(cy)) {
+                    double dx = (double)col - cx;
+                    double dy = (double)row - cy;
+                    moment_sum += value * (dx * dx + dy * dy);
+                }
+            } else {
+                bg_sum += value;
+                bg_sum2 += value * value;
+                bg_count++;
+            }
+        }
+    }
+
+    out->mass = signal_sum;
+    if (signal_count > 0) {
+        out->signal_mean = signal_sum / signal_count;
+        if (signal_sum > 1e-12 && isfinite(cx) && isfinite(cy))
+            out->second_moment = moment_sum / signal_sum;
+    }
+    if (bg_count > 0) {
+        out->background_mean = bg_sum / bg_count;
+        double variance = bg_sum2 / bg_count -
+                          out->background_mean * out->background_mean;
+        out->background_std = sqrt(variance > 0.0 ? variance : 0.0);
+    }
 }
 
 /* ----------------------------------------------------------------------- */
@@ -247,6 +268,15 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
     double pitch_px_est;
     double pupil_cx = 0.0, pupil_cy = 0.0;
     double window_radius_px;
+
+    if (!frame || !cfg || !cal || width <= 0 || height <= 0 ||
+        !isfinite(cfg->thresh_binary) || cfg->thresh_binary < 0.0 ||
+        cfg->thresh_binary > 1.0 || !isfinite(cfg->centroid_percent) ||
+        cfg->centroid_percent < 0.0 || cfg->centroid_percent > 1.0)
+        return -3;
+
+    /* The caller owns any previous calibration and should free it first. */
+    memset(cal, 0, sizeof(*cal));
 
     /* 1. global min/max for binarization threshold */
     fmin = fmax = frame[0];
@@ -297,7 +327,17 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
 
     /* 5. build sub-apertures: square window around each spot, run precise CoG */
     cal->subaps = (rippra_subap *)malloc(n_spots * sizeof(rippra_subap));
-    if (!cal->subaps) { free(spot_cx); free(spot_cy); return -2; }
+    cal->ref_mass = (double *)calloc((size_t)n_spots, sizeof(double));
+    cal->ref_background_mean = (double *)calloc((size_t)n_spots, sizeof(double));
+    cal->ref_background_std = (double *)calloc((size_t)n_spots, sizeof(double));
+    cal->ref_snr = (double *)calloc((size_t)n_spots, sizeof(double));
+    cal->ref_second_moment = (double *)calloc((size_t)n_spots, sizeof(double));
+    if (!cal->subaps || !cal->ref_mass || !cal->ref_background_mean ||
+        !cal->ref_background_std || !cal->ref_snr || !cal->ref_second_moment) {
+        free(spot_cx); free(spot_cy);
+        rippa_calibration_free(cal);
+        return -2;
+    }
     cal->nspots = 0;
     for (i = 0; i < n_spots; ++i) {
         rippra_subap *s = &cal->subaps[cal->nspots];
@@ -314,15 +354,30 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
         if (s->col_max >= width)  s->col_max = width - 1;
         if (s->row_max >= height) s->row_max = height - 1;
 
-        /* precise reference centroid via TCoG inside this window */
+        /* Precise reference centroid and quality statistics via TCoG inside
+         * this window.  Invalid reference spots are not admitted into the
+         * calibration, so the quality gate never compares against a made-up
+         * baseline. */
         {
-            double wmin, wmax, wlevel;
-            window_minmax(frame, width, s->col_min, s->col_max,
-                          s->row_min, s->row_max, &wmin, &wmax);
-            wlevel = wmin + cfg->centroid_percent * (wmax - wmin);
-            tcog_window(frame, width, s->col_min, s->col_max,
-                        s->row_min, s->row_max, wlevel,
-                        &s->ref_cx, &s->ref_cy, &(double){0.0});
+            rippra_spot_metrics metrics;
+            tcog_window_fast(frame, width, s->col_min, s->col_max,
+                             s->row_min, s->row_max, cfg->centroid_percent,
+                             &s->ref_cx, &s->ref_cy, &metrics.mass);
+            compute_window_metrics(frame, width, s->col_min, s->col_max,
+                                   s->row_min, s->row_max,
+                                   cfg->centroid_percent, s->ref_cx, s->ref_cy,
+                                   &metrics);
+            if (!isfinite(s->ref_cx) || !isfinite(s->ref_cy) ||
+                !isfinite(metrics.mass) || metrics.mass <= 1e-9) {
+                continue;
+            }
+            cal->ref_mass[cal->nspots] = metrics.mass;
+            cal->ref_background_mean[cal->nspots] = metrics.background_mean;
+            cal->ref_background_std[cal->nspots] = metrics.background_std;
+            cal->ref_snr[cal->nspots] =
+                (metrics.signal_mean - metrics.background_mean) /
+                (metrics.background_std + 1e-9);
+            cal->ref_second_moment[cal->nspots] = metrics.second_moment;
         }
         cal->nspots++;
     }
@@ -334,40 +389,107 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
     cal->pitch_px = pitch_px_est;
 
     free(spot_cx); free(spot_cy);
+    if (cal->nspots == 0) {
+        rippa_calibration_free(cal);
+        return -2;
+    }
     return 0;
 }
 
 void rippa_calibration_free(rippra_calibration *cal)
 {
-    if (cal && cal->subaps) {
-        free(cal->subaps);
-        cal->subaps = NULL;
-        cal->nspots = 0;
-    }
+    if (!cal) return;
+    free(cal->subaps); cal->subaps = NULL;
+    free(cal->ref_mass); cal->ref_mass = NULL;
+    free(cal->ref_background_mean); cal->ref_background_mean = NULL;
+    free(cal->ref_background_std); cal->ref_background_std = NULL;
+    free(cal->ref_snr); cal->ref_snr = NULL;
+    free(cal->ref_second_moment); cal->ref_second_moment = NULL;
+    cal->nspots = 0;
 }
 
 /* ----------------------------------------------------------------------- */
-/* Public: per-frame centroiding.                                           */
-/* For each sub-aperture, compute relative threshold and TCoG.              */
+/* Public: per-frame centroiding.                                          */
+/* For each sub-aperture, compute relative threshold and TCoG.             */
 /* ----------------------------------------------------------------------- */
-int rippa_compute_centroids(const double *frame, int width, int height,
-                            const rippra_calibration *cal,
-                            const rippa_config *cfg,
-                            double *cx, double *cy)
+int rippa_compute_centroids_with_mass(
+    const double *frame, int width, int height,
+    const rippra_calibration *cal,
+    const rippa_config *cfg,
+    double *cx, double *cy, double *mass)
 {
     int k;
-    (void)height;
+    if (!frame || !cal || !cfg || !cx || !cy || width != cal->width ||
+        height != cal->height || !isfinite(cfg->centroid_percent) ||
+        cfg->centroid_percent < 0.0 || cfg->centroid_percent > 1.0) return -1;
+
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
 #endif
     for (k = 0; k < cal->nspots; ++k) {
         const rippra_subap *s = &cal->subaps[k];
+        double local_mass = 0.0;
+
+        tcog_window_fast(
+            frame, width,
+            s->col_min, s->col_max,
+            s->row_min, s->row_max,
+            cfg->centroid_percent,
+            &cx[k], &cy[k], &local_mass);
+
+        if (mass) {
+            mass[k] = local_mass;
+        }
+    }
+
+    return 0;
+}
+
+int rippa_compute_centroids_with_metrics(
+    const double *frame, int width, int height,
+    const rippra_calibration *cal,
+    const rippa_config *cfg,
+    double *cx, double *cy, rippra_spot_metrics *metrics)
+{
+    int k;
+    if (!frame || !cal || !cfg || !cx || !cy || width != cal->width ||
+        height != cal->height || !isfinite(cfg->centroid_percent) ||
+        cfg->centroid_percent < 0.0 || cfg->centroid_percent > 1.0) return -1;
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+    for (k = 0; k < cal->nspots; ++k) {
+        const rippra_subap *s = &cal->subaps[k];
+        double mass = 0.0;
         tcog_window_fast(frame, width, s->col_min, s->col_max,
                          s->row_min, s->row_max, cfg->centroid_percent,
-                         &cx[k], &cy[k], &(double){0.0});
+                         &cx[k], &cy[k], &mass);
+        if (metrics) {
+            compute_window_metrics(frame, width, s->col_min, s->col_max,
+                                   s->row_min, s->row_max,
+                                   cfg->centroid_percent, cx[k], cy[k],
+                                   &metrics[k]);
+            /* Keep the SIMD/scalar TCoG mass as the authoritative integrated
+             * mass even if a future metrics implementation changes the
+             * accepted-pixel accounting. */
+            metrics[k].mass = mass;
+        }
     }
     return 0;
 }
+
+/* Backward-compatible API for callers that do not need spot mass. */
+int rippa_compute_centroids(const double *frame, int width, int height,
+                            const rippra_calibration *cal,
+                            const rippa_config *cfg,
+                            double *cx, double *cy)
+{
+    return rippa_compute_centroids_with_mass(
+        frame, width, height, cal, cfg, cx, cy, NULL);
+}
+
+
 
 void rippa_compute_deltas(const double *cx, const double *cy,
                           const rippra_calibration *cal,
@@ -410,6 +532,11 @@ int rippa_compute_centroids_refined(const double *frame, int width, int height,
 #pragma omp parallel for schedule(dynamic)
 #endif
     for (k = 0; k < nspots; ++k) {
+        if (!isfinite(cx_out[k]) || !isfinite(cy_out[k])) {
+            if (dx) dx[k] = 0.0;
+            if (dy) dy[k] = 0.0;
+            continue;
+        }
         int cx_i = (int)round(cx_out[k]);
         int cy_i = (int)round(cy_out[k]);
         int cmin = cx_i - r;
