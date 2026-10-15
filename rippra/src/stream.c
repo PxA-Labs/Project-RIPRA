@@ -394,7 +394,11 @@ int rippra_stream_process(rippra_stream *s)
     }
 
     /* Step 6: DM command map */
-    rippra_dm_map_impl(r->W, s->mesh.nnodes, &s->mesh, &s->cfg, r->dm_commands);
+    if (rippra_dm_map_ex_impl(r->W, s->mesh.nnodes, &s->mesh, &s->cfg,
+                              r->dm_commands, &r->dm_status) != 0) {
+        rippra_dm_park_impl(r->dm_commands, s->mesh.nnodes);
+        r->dm_status = RIPPRA_DM_ERROR;
+    }
 
     /* Mark ring entry as processed */
     e->occupied = 0;
