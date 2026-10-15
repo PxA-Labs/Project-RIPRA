@@ -7,9 +7,9 @@ before wavefront reconstruction.  The result is exposed through
 
 | Score | Status | Processing |
 |---|---|---|
-| `Q >= quality_soft` | `RIPPRA_FRAME_NOMINAL` | Reconstruct and map the measured centroids normally. |
-| `quality_hard <= Q < quality_soft` | `RIPPRA_FRAME_DEGRADED` | Reconstruct after nearest-neighbour interpolation of invalid spots. |
-| `Q < quality_hard` | `RIPPRA_FRAME_LOST` | Skip reconstruction and DM mapping; phase, modal, and DM outputs are zero. |
+| `Q >= quality_soft` | `RIPPRA_STATUS_NOMINAL` | Reconstruct and map the measured centroids normally. |
+| `quality_hard <= Q < quality_soft` | `RIPPRA_STATUS_DEGRADED` | Reconstruct after fallback completion of invalid spots. |
+| `Q < quality_hard` | `RIPPRA_STATUS_LOST` | Skip reconstruction and DM mapping; phase, modal, and DM outputs are zero. |
 
 The default thresholds are:
 
@@ -32,7 +32,8 @@ flat frame using the same thresholded CoG window used during streaming:
 * signal-to-background statistic;
 * intensity-weighted centroid second moment.
 
-The calibration frame must contain the complete usable spot grid at the same
+`rippra_quality_calibrate()` publishes those retained values as a non-owning
+`rippra_quality_ref` view.  The calibration frame must contain the complete usable spot grid at the same
 frame dimensions as the stream.  Spots with an invalid or effectively zero
 reference mass are excluded from calibration.  The stream copies these
 reference arrays along with the existing calibration state; callers still
@@ -48,13 +49,19 @@ The implemented score combines:
 4. second-moment agreement with the calibrated spot shape; and
 5. a weak nearest-neighbour displacement-coherence term.
 
-All terms are bounded before the weighted combination is clamped.  The
-coherence term is intentionally weak because a real wavefront can contain
-spatially varying slopes.  No independent camera noise model, saturation
-model, or shape classifier is claimed here.  The current implementation uses
-nearest-neighbour interpolation as the degraded fallback; it does not expose
-a user callback.  Invalid measured `dx`/`dy` values remain visible in the
-result arrays and are only replaced in private reconstruction scratch arrays.
+The fixed weights are `0.85`, `0.05`, `0.05`, and `0.05` for validity, mass/SNR,
+shape, and coherence respectively.  The high validity weight is intentional:
+partial spot loss must cross the soft gate even when the median of the
+remaining spots still looks nominal.  All terms are bounded before the
+weighted combination is clamped.  No independent camera saturation model or
+advanced shape classifier is claimed here.
+
+The degraded path supports `rippra_stream_set_fallback()`.  The stream borrows
+the callback and context, invokes it synchronously on the processing thread,
+and requires finite output slopes.  A callback failure or invalid output
+selects the built-in nearest-neighbour interpolation.  Invalid measured
+`dx`/`dy` values remain visible in the result arrays and are only replaced in
+private reconstruction scratch arrays.
 
 Lost frames do not update the turbulence history, and result slots are
 explicitly zeroed on every lost/error route so a previous DM command cannot
@@ -77,3 +84,8 @@ occluded, and blank frames, including bounded scores and zero DM output for a
 lost frame.  It prints measured latency for visibility but deliberately does
 not use a hard-coded microsecond assertion; full centroiding, reconstruction,
 and DM mapping are workload- and host-dependent.
+
+`benchmark_quality` uses 10 warm-up iterations and 200 timed iterations on
+the generated 137-spot frame.  It reports both the quality reduction over
+already extracted spot arrays and the complete centroid-plus-quality path,
+including p99; results are informational rather than a CI gate.

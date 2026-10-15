@@ -99,7 +99,8 @@ int main(void) {
         if (!isfinite(r->quality) || r->quality < 0.0 || r->quality > 1.0 ||
             (r->status != RIPPRA_FRAME_NOMINAL &&
              r->status != RIPPRA_FRAME_DEGRADED &&
-             r->status != RIPPRA_FRAME_LOST)) {
+             r->status != RIPPRA_FRAME_LOST &&
+             r->status != RIPPRA_STATUS_ERROR)) {
             fprintf(stderr, "ERROR: invalid frame-quality result\n");
             return 1;
         }

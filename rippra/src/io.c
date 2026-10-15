@@ -39,6 +39,8 @@ static void default_config(rippa_config *cfg)
     cfg->coupling           = 0.15;
     cfg->quality_soft       = 0.60;
     cfg->quality_hard       = 0.30;
+    cfg->bg_mean            = 0.0;
+    cfg->bg_sigma           = 0.0;
 }
 
 int rippa_config_validate(const rippa_config *cfg)
@@ -61,6 +63,8 @@ int rippa_config_validate(const rippa_config *cfg)
         !isfinite(cfg->wavelength) || cfg->camera_pixsize <= 0.0 ||
         cfg->flength <= 0.0 || cfg->pitch <= 0.0 || cfg->sa_radius <= 0.0 ||
         cfg->pupil_radius <= 0.0 || cfg->wavelength <= 0.0 ||
+        !isfinite(cfg->bg_mean) || !isfinite(cfg->bg_sigma) ||
+        cfg->bg_sigma < 0.0 ||
         !isfinite(cfg->thresh_binary) || cfg->thresh_binary < 0.0 ||
         cfg->thresh_binary > 1.0 || !isfinite(cfg->centroid_percent) ||
         cfg->centroid_percent < 0.0 || cfg->centroid_percent > 1.0 ||
@@ -106,6 +110,8 @@ int rippa_config_load(rippa_config *cfg, const char *path)
         else if (!strcmp(key, "centroid_percent"))  cfg->centroid_percent = atof(val);
         else if (!strcmp(key, "quality_soft")) cfg->quality_soft = atof(val);
         else if (!strcmp(key, "quality_hard")) cfg->quality_hard = atof(val);
+        else if (!strcmp(key, "bg_mean")) cfg->bg_mean = atof(val);
+        else if (!strcmp(key, "bg_sigma")) cfg->bg_sigma = atof(val);
         else if (!strcmp(key, "coarse_grid_radius"))cfg->coarse_grid_radius = atoi(val);
         else if (!strcmp(key, "zernike_nmax"))      cfg->zernike_nmax = atoi(val);
         else if (!strcmp(key, "dm_nact_x"))         cfg->dm_nact_x = atoi(val);

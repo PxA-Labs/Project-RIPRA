@@ -39,6 +39,8 @@ typedef struct {
     double  centroid_percent;     /* 0..1 relative */
     double quality_soft;           /* threshold for nominal-quality frames */
     double quality_hard;           /* below this threshold, frame is LOST */
+    double bg_mean;                /* optional calibrated background mean */
+    double bg_sigma;               /* optional calibrated background sigma */
     int     coarse_grid_radius;   /* pixels     */
     /* reconstruction */
     int     zernike_nmax;         /* max radial order */

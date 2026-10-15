@@ -67,6 +67,24 @@ static int all_zero(const double *values, int count)
     return 1;
 }
 
+static int fallback_callback(const double *observed_dx, const double *observed_dy,
+                             const int *mask, int nspots, const double *history,
+                             void *ctx, double *out_dx, double *out_dy)
+{
+    int *calls = (int *)ctx;
+    if (!observed_dx || !observed_dy || !mask || !history || !calls)
+        return -1;
+    (*calls)++;
+    for (int i = 0; i < nspots; ++i) {
+        /* Deliberately use zero for invalid spots.  The test verifies the
+         * callback was selected; production callers can supply a learned
+         * slope-completion implementation here. */
+        out_dx[i] = mask[i] ? observed_dx[i] : 0.0;
+        out_dy[i] = mask[i] ? observed_dy[i] : 0.0;
+    }
+    return 0;
+}
+
 int main(void)
 {
     const int width = 648, height = 492;
@@ -76,7 +94,10 @@ int main(void)
     rippra_zonal_mesh mesh = {0};
     rippra_modal_model model = {0};
     rippra_stream *stream = NULL;
-    double *flat = NULL, *attenuated = NULL, *partial = NULL, *severe = NULL;
+    double *flat = NULL, *attenuated = NULL, *attenuated_mid = NULL;
+    double *partial = NULL, *severe = NULL;
+    double *quality_dx = NULL, *quality_dy = NULL, *quality_mass = NULL;
+    int *quality_mask = NULL;
     int rc;
     char config_path[256], flat_path[256];
 
@@ -91,14 +112,31 @@ int main(void)
     CHECK(cfg.quality_hard >= 0.0 && cfg.quality_hard < cfg.quality_soft &&
           cfg.quality_soft <= 1.0, "quality thresholds are ordered and bounded");
     {
-        const char *invalid_path = "/tmp/rippra_quality_invalid.conf";
+        /* Keep the generated fixture relative to the test working directory
+         * so the same test runs on POSIX and Windows. */
+        const char *invalid_path = "rippra_quality_invalid.conf";
         FILE *invalid = fopen(invalid_path, "w");
-        CHECK(invalid != NULL, "invalid configuration fixture opens");
-        fprintf(invalid, "quality_soft = 0.30\nquality_hard = 0.60\n");
-        fclose(invalid);
-        CHECK(rippa_config_load(&cfg, invalid_path) != 0,
+        int fixture_created = invalid != NULL;
+        int fixture_written = 0;
+        int fixture_closed = 0;
+        int rejected = 0;
+        int fixture_removed = 1;
+        if (invalid) {
+            fixture_written = fprintf(invalid,
+                                      "quality_soft = 0.30\n"
+                                      "quality_hard = 0.60\n") >= 0;
+            fixture_closed = fclose(invalid) == 0;
+            invalid = NULL;
+            if (fixture_written && fixture_closed)
+                rejected = rippa_config_load(&cfg, invalid_path) != 0;
+            fixture_removed = remove(invalid_path) == 0;
+        }
+        CHECK(fixture_created, "invalid configuration fixture opens");
+        CHECK(fixture_written && fixture_closed,
+              "invalid configuration fixture is written and closed");
+        CHECK(rejected,
               "invalid quality threshold ordering is rejected");
-        remove(invalid_path);
+        CHECK(fixture_removed, "invalid configuration fixture is removed");
         CHECK(rippa_config_load(&cfg, config_path) == 0,
               "valid quality configuration can be reloaded");
     }
@@ -109,6 +147,28 @@ int main(void)
     CHECK(rc == 0 && cal.nspots > 0, "quality calibration succeeds");
     CHECK(cal.ref_mass != NULL && cal.ref_second_moment != NULL,
           "calibration retains reference quality statistics");
+    rippra_quality_ref quality_ref;
+    CHECK(rippra_quality_calibrate(flat, width, height, &cal, &cfg,
+                                  &quality_ref) == 0 &&
+          quality_ref.ref_mass == cal.ref_mass && quality_ref.bg_sigma >= 0.0,
+          "quality calibration publishes reference view");
+    quality_dx = (double *)calloc((size_t)cal.nspots, sizeof(double));
+    quality_dy = (double *)calloc((size_t)cal.nspots, sizeof(double));
+    quality_mass = (double *)malloc((size_t)cal.nspots * sizeof(double));
+    quality_mask = (int *)malloc((size_t)cal.nspots * sizeof(int));
+    CHECK(quality_dx && quality_dy && quality_mass && quality_mask,
+          "public quality input arrays allocate");
+    for (int i = 0; i < cal.nspots; ++i) {
+        quality_mass[i] = cal.ref_mass[i];
+        quality_mask[i] = 1;
+    }
+    double public_quality_metrics[4];
+    double public_quality = rippra_frame_quality(
+        quality_dx, quality_dy, quality_mass, quality_mask, cal.nspots,
+        &cfg, &cal, public_quality_metrics);
+    CHECK(isfinite(public_quality) && public_quality >= 0.0 &&
+          public_quality <= 1.0 && public_quality > cfg.quality_soft,
+          "public frame quality is bounded and nominal for reference data");
     CHECK(rippra_zonal_setup(&cal, &cfg, &mesh) == 0,
           "quality zonal setup succeeds");
     CHECK(rippra_modal_setup(&cal, &cfg, &model) == 0,
@@ -118,10 +178,13 @@ int main(void)
     CHECK(stream != NULL, "quality stream initializes");
 
     attenuated = (double *)malloc(npix * sizeof(double));
+    attenuated_mid = (double *)malloc(npix * sizeof(double));
     partial = (double *)malloc(npix * sizeof(double));
     severe = (double *)malloc(npix * sizeof(double));
-    CHECK(attenuated && partial && severe, "quality test frames allocate");
-    for (size_t i = 0; i < npix; ++i) attenuated[i] = 0.20 * flat[i];
+    CHECK(attenuated && attenuated_mid && partial && severe,
+          "quality test frames allocate");
+    for (size_t i = 0; i < npix; ++i) attenuated[i] = 0.01 * flat[i];
+    for (size_t i = 0; i < npix; ++i) attenuated_mid[i] = 0.20 * flat[i];
     memcpy(partial, flat, npix * sizeof(double));
     memcpy(severe, flat, npix * sizeof(double));
     occlude_spots(partial, width, height, &cal, 0, cal.nspots / 2);
@@ -136,8 +199,15 @@ int main(void)
           "clean quality is high and bounded");
     CHECK(clean->spot_mass[0] > 0.0 && clean->spot_mask[0] == 1,
           "clean result exposes calibrated spot mass and validity");
+    CHECK(clean->mask == clean->spot_mask,
+          "legacy and Issue #93 validity-mask names share storage");
     double clean_quality = clean->quality;
 
+    const rippra_stream_result *attenuated_mid_result =
+        rippra_stream_process_one(stream, attenuated_mid, width, height);
+    CHECK(attenuated_mid_result != NULL &&
+          isfinite(attenuated_mid_result->quality),
+          "moderate attenuation produces a quality result");
     const rippra_stream_result *attenuated_result =
         rippra_stream_process_one(stream, attenuated, width, height);
     CHECK(attenuated_result != NULL && isfinite(attenuated_result->quality) &&
@@ -145,20 +215,33 @@ int main(void)
           "attenuated quality is bounded");
     printf("INFO: clean quality=%.4f attenuated quality=%.4f status=%d\n",
            clean_quality, attenuated_result->quality, attenuated_result->status);
-    CHECK(attenuated_result->quality < clean_quality &&
-          attenuated_result->status == RIPPRA_FRAME_DEGRADED,
-          "attenuation lowers quality and routes to degraded fallback");
+    CHECK(clean_quality > attenuated_mid_result->quality &&
+          attenuated_mid_result->quality > attenuated_result->quality,
+          "quality decreases monotonically as attenuation increases");
 
+    int fallback_calls = 0;
+    CHECK(rippra_stream_set_fallback(stream, fallback_callback,
+                                     &fallback_calls) == 0,
+          "quality fallback callback installs");
     const rippra_stream_result *partial_result =
         rippra_stream_process_one(stream, partial, width, height);
     CHECK(partial_result != NULL && partial_result->status == RIPPRA_FRAME_DEGRADED,
           "partial occlusion routes to degraded fallback");
+    CHECK(fallback_calls == 1, "degraded frame invokes fallback callback");
     CHECK(partial_result->quality < clean_quality,
           "occlusion decreases quality");
     int invalid = 0;
     for (int i = 0; i < partial_result->nspots; ++i)
         if (!partial_result->spot_mask[i]) invalid++;
     CHECK(invalid > 0, "partial occlusion exposes invalid spots");
+
+    CHECK(rippra_stream_set_fallback(stream, NULL, NULL) == 0,
+          "quality fallback callback clears");
+    const rippra_stream_result *interpolated_result =
+        rippra_stream_process_one(stream, partial, width, height);
+    CHECK(interpolated_result != NULL &&
+          interpolated_result->status == RIPPRA_FRAME_DEGRADED,
+          "degraded frame uses built-in interpolation without callback");
 
     const rippra_stream_result *severe_result =
         rippra_stream_process_one(stream, severe, width, height);
@@ -204,7 +287,9 @@ int main(void)
     rippra_modal_free(&model);
     rippra_zonal_free(&mesh);
     rippa_calibration_free(&cal);
-    free(flat); free(attenuated); free(partial); free(severe);
+    free(flat); free(attenuated); free(attenuated_mid);
+    free(partial); free(severe);
+    free(quality_dx); free(quality_dy); free(quality_mass); free(quality_mask);
     printf("Frame-quality gate tests complete.\n");
     return 0;
 }

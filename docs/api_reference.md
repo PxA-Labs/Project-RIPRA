@@ -150,12 +150,19 @@ The low-level streaming API is declared in `rippra/include/rippra/stream.h`.
 Each dequeued `rippra_stream_result` contains `quality` in `[0, 1]`, a
 `rippra_frame_status`, per-spot `spot_mass`, and the raw `spot_mask`.
 
-`RIPPRA_FRAME_NOMINAL` runs normal reconstruction and DM mapping.
-`RIPPRA_FRAME_DEGRADED` uses the built-in nearest-neighbour interpolation for
-invalid centroid measurements before reconstruction. `RIPPRA_FRAME_LOST`
+`RIPPRA_STATUS_NOMINAL` runs normal reconstruction and DM mapping.
+`RIPPRA_STATUS_DEGRADED` uses the configured fallback callback, or built-in
+nearest-neighbour interpolation, for invalid centroid measurements before
+reconstruction. `RIPPRA_STATUS_LOST`
 skips reconstruction and returns explicitly zeroed phase, modal, and DM
 arrays. See [frame_quality_gate.md](frame_quality_gate.md) for the score
 components, calibration reference statistics, thresholds, and limitations.
+
+The low-level quality functions are `rippra_quality_calibrate()` and
+`rippra_frame_quality()`.  `rippra_stream_set_fallback()` installs a borrowed,
+synchronous degraded-frame callback; callback output is accepted only when it
+returns zero and every completed slope is finite. `RIPPRA_STATUS_ERROR` is
+reserved for an internal centroiding, reconstruction, or DM-map failure.
 
 The existing centroid and stream function signatures remain compatible. The
 stream owns its copied calibration and result buffers; result pointers remain

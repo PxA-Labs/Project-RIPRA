@@ -30,10 +30,27 @@ extern "C" {
 #define RIPPRA_STREAM_NUM_BUFS     2   /* ping-pong frame buffers   */
 /* ---- Frame quality status ----------------------------------------------- */
 typedef enum {
-    RIPPRA_FRAME_NOMINAL = 0,
-    RIPPRA_FRAME_DEGRADED = 1,
-    RIPPRA_FRAME_LOST = 2
+    RIPPRA_STATUS_NOMINAL = 0,
+    RIPPRA_STATUS_DEGRADED = 1,
+    RIPPRA_STATUS_LOST = 2,
+    RIPPRA_STATUS_ERROR = 3,
+    /* Compatibility names retained for the initial Issue #93 implementation. */
+    RIPPRA_FRAME_NOMINAL = RIPPRA_STATUS_NOMINAL,
+    RIPPRA_FRAME_DEGRADED = RIPPRA_STATUS_DEGRADED,
+    RIPPRA_FRAME_LOST = RIPPRA_STATUS_LOST
 } rippra_frame_status;
+
+/* Synchronous degraded-frame hook.  The callback does not own any argument;
+ * observed arrays and history are valid only for the duration of the call.
+ * ctx is caller-owned and is never freed by the stream.  It runs on the
+ * processing thread while stream processing is serialized; it must not call
+ * stream APIs or retain the array pointers.  Return 0 and finite output
+ * arrays to accept the completed slopes; any other result selects the
+ * built-in spatial interpolation fallback. */
+typedef int (*rippra_quality_fallback_fn)(
+    const double *observed_dx, const double *observed_dy,
+    const int *mask, int nspots, const double *history, void *ctx,
+    double *out_dx, double *out_dy);
 
 /* ---- Per-frame result ---------------------------------------------------- */
 typedef struct {
@@ -46,6 +63,7 @@ typedef struct {
     int      nspots;
     double *spot_mass;       /* integrated intensity per spot */
     int *spot_mask;          /* 1 = valid centroid/mass, 0 = invalid */
+    int *mask;               /* compatibility alias for spot_mask */
     double quality;          /* frame quality score in [0, 1] */
     rippra_frame_status status;
     /* zonal reconstruction */
@@ -136,6 +154,13 @@ const rippra_stream_result *rippra_stream_process_one(rippra_stream *s,
  *  Must be called before any processing.
  */
 void rippra_stream_set_turbulence_window(rippra_stream *s, int nframes);
+
+/* Install or clear the degraded-frame fallback.  The stream borrows fn and
+ * ctx; the caller guarantees their lifetime until this function replaces the
+ * callback or the stream is shut down.  Thread-safe; takes effect for the
+ * next processed frame.  Returns 0, or -1 for a NULL stream. */
+int rippra_stream_set_fallback(rippra_stream *s,
+                               rippra_quality_fallback_fn fn, void *ctx);
 
 #ifdef __cplusplus
 }

@@ -114,6 +114,9 @@ if(RIPRA_BUILD_BENCHMARKS)
   add_executable(benchmark_simd rippra/tests/benchmark_simd.c)
   target_link_libraries(benchmark_simd PRIVATE ripra)
 
+  add_executable(benchmark_quality rippra/tests/benchmark_quality.c)
+  target_link_libraries(benchmark_quality PRIVATE ripra)
+
   if(CMAKE_CUDA_COMPILER)
     add_executable(benchmark_cuda_vs_cpu rippra/tests/benchmark_cuda_vs_cpu.cu)
     target_link_libraries(benchmark_cuda_vs_cpu PRIVATE ripra)

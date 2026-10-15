@@ -11,6 +11,8 @@
 #include <string.h>
 #include <math.h>
 
+#define RIPPRA_QUALITY_MAGIC 0x51554c31u
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -70,6 +72,8 @@ struct rippra_stream {
     double *work_dx;
     double *work_dy;
     rippra_spot_metrics *spot_metrics;
+    rippra_quality_fallback_fn fallback_fn;
+    void *fallback_ctx;
 
     /* Synchronisation */
 #ifdef _WIN32
@@ -130,41 +134,72 @@ rippra_stream *rippra_stream_init(const rippa_config *cfg,
 
     /* Deep-copy calibration */
     memcpy(&s->cal, cal, sizeof(rippra_calibration));
+    s->cal.quality_magic =
+        cal->quality_magic == RIPPRA_QUALITY_MAGIC ? RIPPRA_QUALITY_MAGIC : 0;
     s->cal.subaps = (rippra_subap *)malloc(cal->nspots * sizeof(rippra_subap));
     s->cal.ref_mass = NULL;
     s->cal.ref_background_mean = NULL;
     s->cal.ref_background_std = NULL;
     s->cal.ref_snr = NULL;
     s->cal.ref_second_moment = NULL;
+    s->cal.ref_second_moment_x = NULL;
+    s->cal.ref_second_moment_y = NULL;
+    s->cal.quality_neighbor_count = NULL;
+    s->cal.quality_neighbors = NULL;
     if (!s->cal.subaps) goto init_fail;
     memcpy(s->cal.subaps, cal->subaps, cal->nspots * sizeof(rippra_subap));
-    if (cal->ref_mass) {
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_mass) {
         s->cal.ref_mass = (double *)malloc((size_t)cal->nspots * sizeof(double));
         if (!s->cal.ref_mass) goto init_fail;
         memcpy(s->cal.ref_mass, cal->ref_mass, (size_t)cal->nspots * sizeof(double));
     }
-    if (cal->ref_background_mean) {
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_background_mean) {
         s->cal.ref_background_mean = (double *)malloc((size_t)cal->nspots * sizeof(double));
         if (!s->cal.ref_background_mean) goto init_fail;
         memcpy(s->cal.ref_background_mean, cal->ref_background_mean,
                (size_t)cal->nspots * sizeof(double));
     }
-    if (cal->ref_background_std) {
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_background_std) {
         s->cal.ref_background_std = (double *)malloc((size_t)cal->nspots * sizeof(double));
         if (!s->cal.ref_background_std) goto init_fail;
         memcpy(s->cal.ref_background_std, cal->ref_background_std,
                (size_t)cal->nspots * sizeof(double));
     }
-    if (cal->ref_snr) {
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_snr) {
         s->cal.ref_snr = (double *)malloc((size_t)cal->nspots * sizeof(double));
         if (!s->cal.ref_snr) goto init_fail;
         memcpy(s->cal.ref_snr, cal->ref_snr, (size_t)cal->nspots * sizeof(double));
     }
-    if (cal->ref_second_moment) {
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_second_moment) {
         s->cal.ref_second_moment = (double *)malloc((size_t)cal->nspots * sizeof(double));
         if (!s->cal.ref_second_moment) goto init_fail;
         memcpy(s->cal.ref_second_moment, cal->ref_second_moment,
                (size_t)cal->nspots * sizeof(double));
+    }
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_second_moment_x) {
+        s->cal.ref_second_moment_x = (double *)malloc((size_t)cal->nspots * sizeof(double));
+        if (!s->cal.ref_second_moment_x) goto init_fail;
+        memcpy(s->cal.ref_second_moment_x, cal->ref_second_moment_x,
+               (size_t)cal->nspots * sizeof(double));
+    }
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_second_moment_y) {
+        s->cal.ref_second_moment_y = (double *)malloc((size_t)cal->nspots * sizeof(double));
+        if (!s->cal.ref_second_moment_y) goto init_fail;
+        memcpy(s->cal.ref_second_moment_y, cal->ref_second_moment_y,
+               (size_t)cal->nspots * sizeof(double));
+    }
+    if (cal->quality_magic == RIPPRA_QUALITY_MAGIC &&
+        cal->quality_neighbor_count && cal->quality_neighbors) {
+        s->cal.quality_neighbor_count =
+            (int *)malloc((size_t)cal->nspots * sizeof(int));
+        s->cal.quality_neighbors =
+            (int *)malloc((size_t)cal->nspots * 8 * sizeof(int));
+        if (!s->cal.quality_neighbor_count || !s->cal.quality_neighbors)
+            goto init_fail;
+        memcpy(s->cal.quality_neighbor_count, cal->quality_neighbor_count,
+               (size_t)cal->nspots * sizeof(int));
+        memcpy(s->cal.quality_neighbors, cal->quality_neighbors,
+               (size_t)cal->nspots * 8 * sizeof(int));
     }
 
     /* Deep-copy zonal mesh */
@@ -230,6 +265,7 @@ rippra_stream *rippra_stream_init(const rippa_config *cfg,
         s->results[i].dy = (double *)calloc(nspots, sizeof(double));
         s->results[i].spot_mass = (double *)calloc(nspots, sizeof(double));
         s->results[i].spot_mask = (int *)calloc(nspots, sizeof(int));
+        s->results[i].mask = s->results[i].spot_mask;
         s->results[i].W  = (double *)calloc(nnodes, sizeof(double));
         s->results[i].zernike_coeffs = (double *)calloc(nmodes, sizeof(double));
         s->results[i].dm_commands     = (double *)calloc(nnodes, sizeof(double));
@@ -405,92 +441,6 @@ static void stream_interpolate_lost_spots(const double *dx, const double *dy,
     }
 }
 
-static double stream_quality_clamp(double value)
-{
-    if (!isfinite(value) || value < 0.0) return 0.0;
-    if (value > 1.0) return 1.0;
-    return value;
-}
-
-static double stream_quality_score(const rippra_stream *s,
-                                   const double *dx, const double *dy,
-                                   const int *mask, int nspots)
-{
-    double valid_fraction = 0.0;
-    double mass_score = 0.0, snr_score = 0.0, shape_score = 0.0;
-    double coherence_score = 0.0;
-    int valid = 0, mass_count = 0, snr_count = 0, shape_count = 0;
-
-    for (int i = 0; i < nspots; ++i) {
-        if (!mask[i]) continue;
-        valid++;
-        const rippra_spot_metrics *m = &s->spot_metrics[i];
-        if (s->cal.ref_mass && s->cal.ref_mass[i] > 1e-12 && m->mass > 1e-12) {
-            double ratio = m->mass / s->cal.ref_mass[i];
-            if (isfinite(ratio) && ratio > 0.0) {
-                mass_score += exp(-fabs(log(ratio)));
-                mass_count++;
-            }
-        }
-        if (s->cal.ref_snr && s->cal.ref_snr[i] > 1e-9) {
-            double snr = (m->signal_mean - m->background_mean) /
-                         (m->background_std + 1e-9);
-            if (isfinite(snr) && snr >= 0.0) {
-                double ratio = snr / s->cal.ref_snr[i];
-                snr_score += ratio < 1.0 ? ratio : 1.0;
-                snr_count++;
-            }
-        }
-        if (s->cal.ref_second_moment && s->cal.ref_second_moment[i] > 1e-12 &&
-            m->second_moment > 1e-12) {
-            double ratio = m->second_moment / s->cal.ref_second_moment[i];
-            if (isfinite(ratio) && ratio > 0.0) {
-                shape_score += exp(-fabs(log(ratio)));
-                shape_count++;
-            }
-        }
-    }
-    if (nspots > 0) valid_fraction = (double)valid / nspots;
-    if (mass_count == 0) mass_score = 1.0;
-    else mass_score /= mass_count;
-    if (snr_count == 0) snr_score = 1.0;
-    else snr_score /= snr_count;
-    if (shape_count == 0) shape_score = 1.0;
-    else shape_score /= shape_count;
-
-    /* A weak local smoothness check catches incoherent centroid corruption
-     * without penalising a physically smooth wavefront tilt. */
-    {
-        double sum = 0.0;
-        int pairs = 0;
-        double scale = s->cal.pitch_px > 0.0 ? s->cal.pitch_px * 0.20 : 5.0;
-        if (scale < 2.0) scale = 2.0;
-        for (int i = 0; i < nspots; ++i) {
-            if (!mask[i]) continue;
-            double best_d2 = 1e30;
-            int best = -1;
-            for (int j = 0; j < nspots; ++j) {
-                if (i == j || !mask[j]) continue;
-                double px = s->cal.subaps[i].ref_cx - s->cal.subaps[j].ref_cx;
-                double py = s->cal.subaps[i].ref_cy - s->cal.subaps[j].ref_cy;
-                double d2 = px * px + py * py;
-                if (d2 < best_d2) { best_d2 = d2; best = j; }
-            }
-            if (best >= 0) {
-                double ddx = dx[i] - dx[best];
-                double ddy = dy[i] - dy[best];
-                sum += exp(-sqrt(ddx * ddx + ddy * ddy) / scale);
-                pairs++;
-            }
-        }
-        coherence_score = pairs > 0 ? sum / pairs : 1.0;
-    }
-
-    return stream_quality_clamp(valid_fraction *
-                                (0.55 * mass_score + 0.20 * snr_score +
-                                 0.15 * shape_score + 0.10 * coherence_score));
-}
-
 static void stream_zero_result(rippra_stream_result *r)
 {
     memset(r->W, 0, (size_t)r->nnodes * sizeof(double));
@@ -546,6 +496,9 @@ int rippra_stream_process(rippra_stream *s)
         e->frame, e->width, e->height, &s->cal, &s->cfg,
         r->cx, r->cy, s->spot_metrics);
     if (centroid_rc != 0) {
+        r->quality = 0.0;
+        r->status = RIPPRA_STATUS_ERROR;
+        stream_zero_result(r);
         e->occupied = 0;
         s->ring_head = (s->ring_head + 1) % s->ring_capacity;
         s->results_tail = (s->results_tail + 1) % s->results_capacity;
@@ -562,7 +515,9 @@ int rippra_stream_process(rippra_stream *s)
         if (!isfinite(s->spot_metrics[i].mass) || s->spot_metrics[i].mass <= 1e-9)
             r->spot_mask[i] = 0;
     }
-    r->quality = stream_quality_score(s, r->dx, r->dy, r->spot_mask, nspots);
+    r->quality = rippra_frame_quality_with_metrics(
+        r->dx, r->dy, r->spot_mass, r->spot_mask, s->spot_metrics,
+        nspots, &s->cfg, &s->cal, NULL);
     if (r->quality >= s->cfg.quality_soft)
         r->status = RIPPRA_FRAME_NOMINAL;
     else if (r->quality >= s->cfg.quality_hard)
@@ -579,10 +534,26 @@ int rippra_stream_process(rippra_stream *s)
         return 0;
     }
 
-    if (r->status == RIPPRA_FRAME_DEGRADED)
-        stream_interpolate_lost_spots(r->dx, r->dy, r->spot_mask, nspots,
-                                      &s->cal, s->work_dx, s->work_dy);
-    else {
+    if (r->status == RIPPRA_FRAME_DEGRADED) {
+        int fallback_ok = 0;
+        if (s->fallback_fn) {
+            int callback_rc = s->fallback_fn(
+                r->dx, r->dy, r->spot_mask, nspots, s->dx_history,
+                s->fallback_ctx, s->work_dx, s->work_dy);
+            if (callback_rc == 0) {
+                fallback_ok = 1;
+                for (int i = 0; i < nspots; ++i) {
+                    if (!isfinite(s->work_dx[i]) || !isfinite(s->work_dy[i])) {
+                        fallback_ok = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!fallback_ok)
+            stream_interpolate_lost_spots(r->dx, r->dy, r->spot_mask, nspots,
+                                          &s->cal, s->work_dx, s->work_dy);
+    } else {
         memcpy(s->work_dx, r->dx, (size_t)nspots * sizeof(double));
         memcpy(s->work_dy, r->dy, (size_t)nspots * sizeof(double));
     }
@@ -597,7 +568,7 @@ int rippra_stream_process(rippra_stream *s)
                                             &s->cfg, r->zernike_coeffs);
     if (recon_rc != 0) {
         r->quality = 0.0;
-        r->status = RIPPRA_FRAME_LOST;
+        r->status = RIPPRA_STATUS_ERROR;
         stream_zero_result(r);
     }
 
@@ -622,11 +593,11 @@ int rippra_stream_process(rippra_stream *s)
     }
 
     /* Step 6: DM command map.  A lost result is always explicitly zeroed. */
-    if (r->status != RIPPRA_FRAME_LOST &&
+    if (r->status != RIPPRA_FRAME_LOST && r->status != RIPPRA_STATUS_ERROR &&
         rippra_dm_map_impl(r->W, s->mesh.nnodes, &s->mesh, &s->cfg,
                            r->dm_commands) != 0) {
         r->quality = 0.0;
-        r->status = RIPPRA_FRAME_LOST;
+        r->status = RIPPRA_STATUS_ERROR;
         stream_zero_result(r);
     }
 
@@ -697,4 +668,15 @@ void rippra_stream_set_turbulence_window(rippra_stream *s, int nframes)
         free(new_dy);
     }
     stream_unlock(s);
+}
+
+int rippra_stream_set_fallback(rippra_stream *s,
+                               rippra_quality_fallback_fn fn, void *ctx)
+{
+    if (!s) return -1;
+    stream_lock(s);
+    s->fallback_fn = fn;
+    s->fallback_ctx = ctx;
+    stream_unlock(s);
+    return 0;
 }

@@ -12,6 +12,7 @@ motivation, key formulas, and links to C source lines.
 2. [Spot Detection](#2-spot-detection)
 3. [Thresholded Center of Gravity (TCoG)](#3-thresholded-center-of-gravity-tcog)
 4. [Grid Calibration](#4-grid-calibration)
+   - [Frame-quality gate](#frame-quality-gate)
 5. [Zernike Polynomials](#5-zernike-polynomials)
 6. [Modal Reconstruction (Zernike-based)](#6-modal-reconstruction-zernike-based)
 7. [Zonal Reconstruction (Fried Geometry)](#7-zonal-reconstruction-fried-geometry)
@@ -56,6 +57,8 @@ into a `rippa_config` struct ([io.c:44–82](../../rippra/src/io.c)):
 | `wavelength` | 632.8 × 10⁻⁹ m | HeNe laser wavelength |
 | `thresh_binary` | 0.08 | Relative threshold for binarization |
 | `centroid_percent` | 0.2 | Relative threshold for TCoG |
+| `quality_soft` | 0.60 | Minimum Q for nominal routing |
+| `quality_hard` | 0.30 | Minimum Q for degraded routing |
 | `zernike_nmax` | 5 | Max radial order (20 modes) |
 
 ---
@@ -214,6 +217,36 @@ second pass: window centred on (round(cx₁), round(cy₁)) with radius r
 ```
 
 ([centroid.c:407–449](../../rippra/src/centroid.c))
+
+### Frame-quality gate
+
+The stream evaluates frame quality after centroiding and before reconstruction.
+Calibration retains per-spot reference mass, background mean and sigma, and
+the X/Y second moments of the accepted TCoG pixels.  The public
+`rippra_quality_calibrate()` function exposes these references as a
+non-owning `rippra_quality_ref` view.
+
+For each frame, the gate combines four bounded terms:
+
+* validity fraction of finite, positive-mass spots;
+* median calibrated mass agreement, blended with current peak-over-background
+  SNR when the streaming metrics are available;
+* median second-moment shape agreement;
+* 3×3-pupil-neighbour displacement coherence using the normalized inconsistency
+  `χ`, mapped to `1 − χ`.
+
+The current fixed weights are `0.85`, `0.05`, `0.05`, and `0.05`.  They sum
+to one, so `Q` is clamped to `[0, 1]`.  The high validity weight reflects the
+safety requirement that a frame with many missing spots must not enter the
+deterministic reconstructor.  `quality_soft` (default `0.60`) selects
+`RIPPRA_STATUS_NOMINAL`; `quality_hard` (default `0.30`) selects
+`RIPPRA_STATUS_DEGRADED` above the lower boundary and
+`RIPPRA_STATUS_LOST` below it.
+
+On degraded frames, `rippra_stream_set_fallback()` may provide a synchronous
+slope-completion callback.  If it is absent or returns invalid output, the
+built-in nearest-neighbour spatial interpolation is used.  Lost frames skip
+reconstruction and DM mapping and explicitly zero all output commands.
 
 ---
 

@@ -44,6 +44,13 @@ typedef struct rippra_calibration {
     double *ref_background_std;
     double *ref_snr;
     double *ref_second_moment;
+    double *ref_second_moment_x;
+    double *ref_second_moment_y;
+    int *quality_neighbor_count;
+    int *quality_neighbors;       /* nspots x 8 precomputed 3x3 neighbours */
+    double bg_mean;
+    double bg_sigma;
+    unsigned int quality_magic;   /* internal validity marker for optional arrays */
     double pupil_cx;        /* pupil centre X (pixels)                 */
     double pupil_cy;        /* pupil centre Y (pixels)                 */
     int width, height;      /* frame dimensions                        */
@@ -56,8 +63,25 @@ typedef struct rippra_spot_metrics {
     double background_mean;
     double background_std;
     double second_moment;
+    double second_moment_x;
+    double second_moment_y;
     double signal_mean;
+    double signal_peak;
 } rippra_spot_metrics;
+
+/* Quality reference view.  The arrays are owned by rippra_calibration and
+ * remain valid until rippa_calibration_free() is called. */
+typedef struct rippra_quality_ref {
+    int nspots;
+    const double *ref_mass;
+    const double *ref_second_moment;
+    const double *ref_second_moment_x;
+    const double *ref_second_moment_y;
+    const double *ref_background_mean;
+    const double *ref_background_sigma;
+    double bg_mean;
+    double bg_sigma;
+} rippra_quality_ref;
 
 /*
  * Calibrate the sub-aperture grid from a reference (flat) frame.
@@ -114,6 +138,30 @@ int rippa_compute_centroids_with_metrics(
     const rippa_config *cfg,
     double *cx, double *cy, rippra_spot_metrics *metrics);
 
+/* Quality-calibrate an already detected grid against a known-good frame.
+ * This publishes the reference statistics retained by cal without copying
+ * their arrays.  The returned view is valid for the lifetime of cal. */
+int rippra_quality_calibrate(const double *frame, int width, int height,
+                            const rippra_calibration *cal,
+                            const rippa_config *cfg,
+                            rippra_quality_ref *ref);
+
+/* Compute Q in [0, 1] from public per-spot centroid data.  out_metrics, when
+ * non-NULL, receives validity, mass, shape, and spatial-coherence terms. */
+double rippra_frame_quality(const double *dx, const double *dy,
+                            const double *mass, const int *mask,
+                            int nspots, const rippa_config *cfg,
+                            const rippra_calibration *cal,
+                            double *out_metrics);
+
+/* Extended form used by the streaming path so SNR/background and shape
+ * diagnostics are included without rescanning the frame. */
+double rippra_frame_quality_with_metrics(
+    const double *dx, const double *dy, const double *mass, const int *mask,
+    const rippra_spot_metrics *metrics, int nspots,
+    const rippa_config *cfg, const rippra_calibration *cal,
+    double *out_metrics);
+
 /*
  * Compute deltas (spot deviations) from reference centroids.
  * dx[nspots] = cx[i] - cal->subaps[i].ref_cx
@@ -135,6 +183,12 @@ int rippa_compute_centroids_refined(const double *frame, int width, int height,
                                      const rippa_config *cfg,
                                      double *cx_out, double *cy_out,
                                      double *dx, double *dy);
+
+/* Refined centroiding variant with optional per-spot mass output. */
+int rippa_compute_centroids_refined_with_mass(
+    const double *frame, int width, int height,
+    const rippra_calibration *cal, const rippa_config *cfg,
+    double *cx_out, double *cy_out, double *dx, double *dy, double *mass);
 
 #ifdef __cplusplus
 }

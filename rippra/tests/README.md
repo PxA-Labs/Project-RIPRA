@@ -17,6 +17,7 @@ C test programs for all pipeline stages.
 | `test_minimal.c` | Smoke test for library compilation |
 | `benchmark_centroid.c` | Centroiding timing benchmarks |
 | `benchmark_openmp.c` | OpenMP vs single-thread comparison |
+| `benchmark_quality.c` | Frame-quality reduction and centroid-plus-quality latency |
 
 ## Key Tests
 

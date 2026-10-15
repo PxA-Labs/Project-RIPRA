@@ -119,6 +119,11 @@ Its threshold settings are `quality_soft` and `quality_hard` in
 `rippra/config/system.conf`; a calibration flat frame is required before
 stream initialization.
 
+With `-DRIPRA_BUILD_BENCHMARKS=ON`, `benchmark_quality` reports the mean and
+p99 of the quality reduction itself and of the complete centroid-plus-quality
+path.  It is informational and does not impose a machine-dependent hard
+latency assertion.
+
 ### Real-Time Time-Series Generation
 
 ```bash
