@@ -350,13 +350,17 @@ class Rippra:
         return dx, dy
 
     def reconstruct_zonal(self, dx, dy, mask=None):
+        if self._cal is None:
+            raise RuntimeError("reconstruct_zonal requires a calibrated Rippra instance")
         dx_a = np.ascontiguousarray(dx, dtype=np.float64)
         dy_a = np.ascontiguousarray(dy, dtype=np.float64)
         if mask is None:
             mask_arr = np.ones(self._nspots, dtype=np.int32)
         else:
             mask_arr = np.ascontiguousarray(mask, dtype=np.int32)
-        nnodes = self._nspots  # approx
+        nnodes = self._lib.rippra_calibration_nnodes(self._cal)
+        if nnodes <= 0:
+            raise RuntimeError(f"rippra_calibration_nnodes failed with code {nnodes}")
         phase = np.zeros(nnodes, dtype=np.float64)
         ret = self._lib.rippra_reconstruct_zonal(
             self._cal, dx_a, dy_a, mask_arr, ctypes.byref(self._cfg), phase)

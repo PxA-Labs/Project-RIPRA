@@ -28,11 +28,11 @@ set(RIPRA_SOURCES
   rippra/src/simd.c
 )
 
-# simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
-# (a) rippra_simd_detect() returns SSE, so AVX2 path is dead code; and
-# (b) linking an AVX2-compiled .obj promotes SSE→VEX globally, crashing
-#     unrelated code.  On GCC/Clang: compiled with -mavx2 -mfma.
-if(NOT MSVC)
+# simd_avx2.c contains AVX2 intrinsics. It is intentionally limited to
+# non-Windows x86 GCC/Clang targets; ARM and Windows use the scalar path.
+if(NOT WIN32 AND
+   CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$" AND
+   CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
   list(APPEND RIPRA_SOURCES rippra/src/simd_avx2.c)
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()

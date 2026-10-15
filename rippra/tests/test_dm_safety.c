@@ -281,6 +281,110 @@ static void test_dm_closed_loop_clamping(void)
     rippra_zonal_free(&mesh);
 }
 
+/* Test 10: Public closed-loop wrappers use the current config, not the
+ * calibration-time safety defaults, while retaining cached geometry. */
+static void test_public_closed_loop_current_config(void)
+{
+    printf("\ntest_public_closed_loop_current_config:\n");
+
+    rippra_api_config calibration_cfg = rippra_default_config();
+    test_check("calibration_default_stroke_disabled",
+               calibration_cfg.dm_max_stroke == 0.0);
+
+    int width = calibration_cfg.frame_width;
+    int height = calibration_cfg.frame_height;
+    size_t npix = (size_t)width * (size_t)height;
+    double *flat = (double *)calloc(npix, sizeof(double));
+    if (!flat) {
+        test_check("public_calibration_allocation", 0);
+        return;
+    }
+
+    /* One bright 9x9 spot is sufficient for the public calibration path. */
+    for (int y = height / 2 - 4; y <= height / 2 + 4; ++y) {
+        for (int x = width / 2 - 4; x <= width / 2 + 4; ++x)
+            flat[(size_t)y * (size_t)width + (size_t)x] = 1.0;
+    }
+
+    void *cal = rippra_calibrate(flat, width, height, &calibration_cfg);
+    free(flat);
+    test_check("public_calibration_succeeds", cal != NULL);
+    if (!cal) return;
+
+    /* Force the zonal geometry to be cached before changing runtime config. */
+    int nnodes = rippra_calibration_nnodes(cal);
+    test_check("public_geometry_cached", nnodes == 4);
+    if (nnodes != 4) {
+        rippra_calibration_free(cal);
+        return;
+    }
+
+    rippra_api_config current_cfg = calibration_cfg;
+    current_cfg.dm_max_stroke = 1.0e-6;
+    current_cfg.dm_park_threshold = 1.0; /* clamp, never park at 100% */
+    current_cfg.coupling = 0.75;
+
+    double phase[4] = {1.0e-3, 1.0e-3, 1.0e-3, 1.0e-3};
+    double commands[4] = {0.0, 0.0, 0.0, 0.0};
+    double residual[4] = {0.0, 0.0, 0.0, 0.0};
+
+    /* dm_apply must use the current coupling with the cached mesh. */
+    double apply_commands[4] = {0.5e-6, 0.0, 0.0, 0.0};
+    double zero_phase[4] = {0.0, 0.0, 0.0, 0.0};
+    int ret = rippra_dm_apply(apply_commands, nnodes, cal, &current_cfg,
+                              zero_phase, residual);
+    test_check("public_apply_uses_current_config", ret == 0 &&
+               fabs(residual[1] - current_cfg.coupling * apply_commands[0]) < 1e-12);
+
+    /* The single-step wrapper must bound newly accumulated commands. */
+    ret = rippra_closed_loop_step(cal, phase, nnodes, &current_cfg,
+                                  commands, 1.0);
+    int step_bounded = (ret >= 0);
+    for (int i = 0; i < nnodes; ++i) {
+        if (!isfinite(commands[i]) || fabs(commands[i]) > current_cfg.dm_max_stroke + 1e-12)
+            step_bounded = 0;
+    }
+    test_check("public_step_commands_bounded", step_bounded);
+
+    /* The run wrapper must sanitize an unsafe caller-provided state before
+     * its early-convergence return. */
+    for (int i = 0; i < nnodes; ++i) commands[i] = 2.0e-3;
+    double initial_phase[4] = {0.0, 0.0, 0.0, 0.0};
+    int out_iters = -1;
+    double out_rms = -1.0;
+    ret = rippra_closed_loop_run(cal, initial_phase, nnodes, &current_cfg,
+                                 commands, 1.0, 1, 1.0e9,
+                                 &out_iters, &out_rms);
+    int run_bounded = (ret == 0);
+    for (int i = 0; i < nnodes; ++i) {
+        if (!isfinite(commands[i]) || fabs(commands[i]) > current_cfg.dm_max_stroke + 1e-12)
+            run_bounded = 0;
+    }
+    test_check("public_run_sanitizes_commands", run_bounded);
+
+    /* Invalid public calls must fail without allowing a command buffer
+     * through unsanitized. */
+    for (int i = 0; i < nnodes; ++i) commands[i] = 2.0e-3;
+    ret = rippra_closed_loop_step(cal, phase, nnodes, NULL, commands, 1.0);
+    int step_invalid_parked = (ret == -1);
+    for (int i = 0; i < nnodes; ++i) {
+        if (commands[i] != 0.0) step_invalid_parked = 0;
+    }
+    test_check("public_step_null_config_parks", step_invalid_parked);
+
+    for (int i = 0; i < nnodes; ++i) commands[i] = 2.0e-3;
+    ret = rippra_closed_loop_run(cal, initial_phase, nnodes, NULL,
+                                 commands, 1.0, 1, 1.0e9,
+                                 &out_iters, &out_rms);
+    int run_invalid_parked = (ret == -1);
+    for (int i = 0; i < nnodes; ++i) {
+        if (commands[i] != 0.0) run_invalid_parked = 0;
+    }
+    test_check("public_run_null_config_parks", run_invalid_parked);
+
+    rippra_calibration_free(cal);
+}
+
 int main(void)
 {
     printf("=== DM Safety Layer Tests ===\n");
@@ -294,6 +398,7 @@ int main(void)
     test_public_dm_saturate();
     test_dm_map_status();
     test_dm_closed_loop_clamping();
+    test_public_closed_loop_current_config();
 
     printf("\n=== %d/%d tests passed ===\n", npass, ntests);
     return (npass == ntests) ? 0 : 1;

@@ -96,11 +96,16 @@ def main():
     dx_dead, dy_dead = r.centroid(aberrated, w, h, mask=dead_mask)
     phase_dead = r.reconstruct_zonal(dx_dead, dy_dead, mask=dead_mask)
     coeffs_dead = r.reconstruct_modal(dx_dead, dy_dead, mask=dead_mask)
+    expected_nnodes = r._lib.rippra_calibration_nnodes(r._cal)
     
     print(f"  Dead spot reconstruction successful!")
     print(f"  Zonal phase shape: {phase_dead.shape}, Modal coeffs shape: {coeffs_dead.shape}")
     
     # Assertions
+    assert expected_nnodes > 0, "Native zonal node count must be positive"
+    assert phase_dead.shape == (expected_nnodes,), (
+        f"Expected {expected_nnodes} zonal phase values, got {phase_dead.size}"
+    )
     assert np.all(np.isfinite(phase_dead)), "Reconstructed zonal phase contains non-finite values"
     assert np.all(np.isfinite(coeffs_dead)), "Reconstructed modal coefficients contain non-finite values"
     print("  Dead-spot masking assertions passed!")

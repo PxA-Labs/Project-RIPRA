@@ -96,6 +96,20 @@ typedef struct api_calibration {
     int                mmodel_ready;
 } api_calibration;
 
+/* The zonal mesh is calibration geometry.  Build it once from the
+ * calibration-time configuration, then let each operation use its current
+ * caller-supplied configuration for runtime behavior such as DM safety. */
+static int api_ensure_zonal_mesh(api_calibration *cal)
+{
+    if (!cal) return -1;
+    if (!cal->zmesh_ready) {
+        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
+        if (ret != 0) return ret;
+        cal->zmesh_ready = 1;
+    }
+    return 0;
+}
+
 RIPRA_API void* rippra_calibrate(const double *flat_frame,
                                   int width, int height,
                                   const rippra_api_config *cfg)
@@ -363,11 +377,8 @@ RIPRA_API int rippra_dm_map_ex(const double *target_phase, int nnodes,
     if (out_status) *out_status = RIPPRA_DM_ERROR;
     if (out_commands && nnodes > 0) rippra_dm_park_impl(out_commands, nnodes);
     if (!cal || !cfg) return -1;
-    if (!cal->zmesh_ready) {
-        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
-        if (ret != 0) return ret;
-        cal->zmesh_ready = 1;
-    }
+    int ret = api_ensure_zonal_mesh(cal);
+    if (ret != 0) return ret;
     rippa_config internal;
     api_cfg_to_internal(cfg, &internal);
     return rippra_dm_map_ex_impl(target_phase, nnodes, &cal->zmesh,
@@ -382,13 +393,16 @@ RIPRA_API int rippra_dm_apply(const double *dm_commands, int nnodes,
                                double *out_residual)
 {
     api_calibration *cal = (api_calibration*)cal_ptr;
-    (void)cfg;
-    if (!cal->zmesh_ready) {
-        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
-        if (ret != 0) return ret;
-        cal->zmesh_ready = 1;
-    }
-    return rippra_dm_apply_impl(dm_commands, nnodes, &cal->zmesh, &cal->cfg, input_phase, out_residual);
+    if (!cal || !cfg || !dm_commands || nnodes <= 0 || !input_phase || !out_residual)
+        return -1;
+    int ret = api_ensure_zonal_mesh(cal);
+    if (ret != 0) return ret;
+    if (cal->zmesh.nnodes != nnodes || !cal->zmesh.node_u || !cal->zmesh.node_v)
+        return -1;
+    rippa_config internal;
+    api_cfg_to_internal(cfg, &internal);
+    return rippra_dm_apply_impl(dm_commands, nnodes, &cal->zmesh, &internal,
+                                input_phase, out_residual);
 }
 
 RIPRA_API int rippra_closed_loop_step(void *cal_ptr,
@@ -399,13 +413,23 @@ RIPRA_API int rippra_closed_loop_step(void *cal_ptr,
                                        double gain)
 {
     api_calibration *cal = (api_calibration*)cal_ptr;
-    (void)cfg;
-    if (!cal->zmesh_ready) {
-        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
-        if (ret != 0) return ret;
-        cal->zmesh_ready = 1;
+    if (!cal || !cfg || !measured_phase || nnodes <= 0 || !dm_commands) {
+        if (dm_commands && nnodes > 0) rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
     }
-    return rippra_closed_loop_step_impl(measured_phase, nnodes, &cal->zmesh, &cal->cfg, dm_commands, gain);
+    int ret = api_ensure_zonal_mesh(cal);
+    if (ret != 0) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return ret;
+    }
+    if (cal->zmesh.nnodes != nnodes || !cal->zmesh.node_u || !cal->zmesh.node_v) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
+    }
+    rippa_config internal;
+    api_cfg_to_internal(cfg, &internal);
+    return rippra_closed_loop_step_impl(measured_phase, nnodes, &cal->zmesh,
+                                        &internal, dm_commands, gain);
 }
 
 RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
@@ -420,15 +444,24 @@ RIPRA_API int rippra_closed_loop_run(void *cal_ptr,
                                       double *out_residual_rms)
 {
     api_calibration *cal = (api_calibration*)cal_ptr;
-    (void)cfg;
-    if (!cal->zmesh_ready) {
-        int ret = rippra_zonal_setup(&cal->base, &cal->cfg, &cal->zmesh);
-        if (ret != 0) return ret;
-        cal->zmesh_ready = 1;
+    if (!cal || !cfg || !initial_phase || nnodes <= 0 || !dm_commands || max_iter < 0) {
+        if (dm_commands && nnodes > 0) rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
     }
-    return rippra_closed_loop_run_impl(initial_phase, nnodes, &cal->zmesh, &cal->cfg,
-                                        dm_commands, gain, max_iter, target_rms,
-                                        out_iters, out_residual_rms);
+    int ret = api_ensure_zonal_mesh(cal);
+    if (ret != 0) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return ret;
+    }
+    if (cal->zmesh.nnodes != nnodes || !cal->zmesh.node_u || !cal->zmesh.node_v) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
+    }
+    rippa_config internal;
+    api_cfg_to_internal(cfg, &internal);
+    return rippra_closed_loop_run_impl(initial_phase, nnodes, &cal->zmesh,
+                                       &internal, dm_commands, gain, max_iter,
+                                       target_rms, out_iters, out_residual_rms);
 }
 
 RIPRA_API double rippra_strehl_ratio(const double *phase, int nnodes)
