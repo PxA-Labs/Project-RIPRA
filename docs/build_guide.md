@@ -72,6 +72,12 @@ run_test_recon.bat
 
 build_test_stream.bat     # Streaming pipeline test
 run_test_stream.bat
+
+# Recommended cross-platform CMake quality-gate checks
+cmake -S . -B build-quality -DRIPRA_BUILD_TESTS=ON
+cmake --build build-quality --parallel
+(cd rippra && python ml/synthetic_shwfs.py)
+ctest --test-dir build-quality -R '^(test_quality|test_stream|test_simd)$' --output-on-failure
 ```
 
 ### CUDA
@@ -107,6 +113,16 @@ run_test_pipeline.bat
 ```
 
 Expected output: 35/35 tests passed. Pipeline latency ~0.76 ms (761 µs).
+
+The frame-quality gate is documented in `docs/frame_quality_gate.md`.
+Its threshold settings are `quality_soft` and `quality_hard` in
+`rippra/config/system.conf`; a calibration flat frame is required before
+stream initialization.
+
+With `-DRIPRA_BUILD_BENCHMARKS=ON`, `benchmark_quality` reports the mean and
+p99 of the quality reduction itself and of the complete centroid-plus-quality
+path.  It is informational and does not impose a machine-dependent hard
+latency assertion.
 
 ### Real-Time Time-Series Generation
 

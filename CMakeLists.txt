@@ -32,7 +32,8 @@ set(RIPRA_SOURCES
 # (a) rippra_simd_detect() returns SSE, so AVX2 path is dead code; and
 # (b) linking an AVX2-compiled .obj promotes SSE→VEX globally, crashing
 #     unrelated code.  On GCC/Clang: compiled with -mavx2 -mfma.
-if(NOT MSVC)
+if(NOT MSVC AND NOT MINGW AND
+   CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i.86)$")
   list(APPEND RIPRA_SOURCES rippra/src/simd_avx2.c)
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()
@@ -81,6 +82,9 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_centroid       rippra/tests/test_centroid.c)
   ripra_add_test(test_la             rippra/tests/test_la.c)
   ripra_add_test(test_stream         rippra/tests/test_stream.c)
+  ripra_add_test(test_quality        rippra/tests/test_quality.c)
+  set_tests_properties(test_stream PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
   ripra_add_test(test_io             rippra/tests/test_io.c)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
@@ -109,6 +113,9 @@ if(RIPRA_BUILD_BENCHMARKS)
 
   add_executable(benchmark_simd rippra/tests/benchmark_simd.c)
   target_link_libraries(benchmark_simd PRIVATE ripra)
+
+  add_executable(benchmark_quality rippra/tests/benchmark_quality.c)
+  target_link_libraries(benchmark_quality PRIVATE ripra)
 
   if(CMAKE_CUDA_COMPILER)
     add_executable(benchmark_cuda_vs_cpu rippra/tests/benchmark_cuda_vs_cpu.cu)
