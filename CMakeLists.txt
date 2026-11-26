@@ -28,11 +28,11 @@ set(RIPRA_SOURCES
   rippra/src/simd.c
 )
 
-# simd_avx2.c contains AVX2 intrinsics. On MSVC: excluded entirely because
-# (a) rippra_simd_detect() returns SSE, so AVX2 path is dead code; and
-# (b) linking an AVX2-compiled .obj promotes SSE→VEX globally, crashing
-#     unrelated code.  On GCC/Clang: compiled with -mavx2 -mfma.
-if(NOT MSVC)
+# simd_avx2.c contains AVX2 intrinsics. It is intentionally limited to
+# non-Windows x86 GCC/Clang targets; ARM and Windows use the scalar path.
+if(NOT WIN32 AND
+   CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$" AND
+   CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
   list(APPEND RIPRA_SOURCES rippra/src/simd_avx2.c)
   set_property(SOURCE rippra/src/simd_avx2.c APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
 endif()
@@ -85,12 +85,20 @@ if(RIPRA_BUILD_TESTS)
   ripra_add_test(test_minimal        rippra/tests/test_minimal.c)
   ripra_add_test(doc_example         rippra/tests/doc_example.c)
   ripra_add_test(test_simd           rippra/tests/test_simd.c)
+  ripra_add_test(test_dm_safety      rippra/tests/test_dm_safety.c)
 
   # CUDA test: compile check (requires GPU to actually run; CI runs
   # continue-on-error).  Mark .c as CUDA so nvcc compiles it.
   if(CMAKE_CUDA_COMPILER AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rippra/cuda/rippra_cuda.h")
     set_source_files_properties(rippra/tests/test_cuda.c PROPERTIES LANGUAGE CUDA)
     ripra_add_test(test_cuda rippra/tests/test_cuda.c)
+
+    add_executable(test_cuda_dm_safety rippra/tests/test_cuda_dm_safety.cu)
+    target_link_libraries(test_cuda_dm_safety PRIVATE ripra)
+    add_test(NAME test_cuda_dm_safety COMMAND test_cuda_dm_safety)
+    set_tests_properties(test_cuda_dm_safety PROPERTIES
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rippra"
+      SKIP_RETURN_CODE 77)
   endif()
 endif()
 

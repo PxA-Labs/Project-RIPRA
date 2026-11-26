@@ -519,13 +519,96 @@ double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series
     return tau0;
 }
 
-/* ---- DM Command Map ------------------------------------------------------ */
+/* ---- DM Safety & Command Map --------------------------------------------- */
 
-int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands) {
+int rippra_dm_park_impl(double *dm_commands, int nnodes)
+{
+    if (!dm_commands || nnodes <= 0) return -1;
+    memset(dm_commands, 0, (size_t)nnodes * sizeof(double));
+    return 0;
+}
+
+int rippra_dm_saturate_impl(double *dm_commands, int nnodes, const rippa_config *cfg, int *out_status)
+{
+    if (out_status) *out_status = RIPPRA_DM_ERROR;
+    if (!dm_commands || nnodes <= 0 || !cfg) return -1;
+
+    double max_stroke = cfg->dm_max_stroke;
+    double threshold = cfg->dm_park_threshold;
+
+    /* A non-finite safety configuration is a fault, never an unlimited mode. */
+    if (!isfinite(max_stroke) || !isfinite(threshold)) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        return -1;
+    }
+
+    if (threshold < 0.0) threshold = 0.0;
+    if (threshold > 1.0) threshold = 1.0;
+
+    int n_unsafe = 0;
+    int n_nonfinite = 0;
+    for (int i = 0; i < nnodes; ++i) {
+        if (!isfinite(dm_commands[i])) {
+            n_nonfinite++;
+        } else if (max_stroke > 0.0 && fabs(dm_commands[i]) > max_stroke) {
+            n_unsafe++;
+        }
+    }
+    n_unsafe += n_nonfinite;
+
+    /* Non-finite commands are a fault and always park, even if limiting is disabled. */
+    if (n_nonfinite > 0) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        if (out_status) *out_status = RIPPRA_DM_PARKED;
+        return n_unsafe;
+    }
+
+    /* 0 or negative = disabled, preserving finite unconstrained behaviour. */
+    if (max_stroke <= 0.0) {
+        if (out_status) *out_status = RIPPRA_DM_OK;
+        return 0;
+    }
+
+    /* Check if fraction strictly exceeds park threshold */
+    if ((double)n_unsafe / (double)nnodes > threshold) {
+        rippra_dm_park_impl(dm_commands, nnodes);
+        if (out_status) *out_status = RIPPRA_DM_PARKED;
+        return n_unsafe;
+    }
+
+    /* Clamp strokes within [-max_stroke, +max_stroke] */
+    if (n_unsafe > 0) {
+        for (int i = 0; i < nnodes; ++i) {
+            if (dm_commands[i] > max_stroke) {
+                dm_commands[i] = max_stroke;
+            } else if (dm_commands[i] < -max_stroke) {
+                dm_commands[i] = -max_stroke;
+            }
+        }
+        if (out_status) *out_status = RIPPRA_DM_SATURATED;
+    } else {
+        if (out_status) *out_status = RIPPRA_DM_OK;
+    }
+
+    return n_unsafe;
+}
+
+int rippra_dm_map_raw_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands) {
+    if (!target_phase || nnodes <= 0 || !mesh || !cfg || !dm_commands ||
+        mesh->nnodes != nnodes || !mesh->node_u || !mesh->node_v)
+        return -1;
+
+    for (int i = 0; i < nnodes; ++i) {
+        if (!isfinite(target_phase[i])) return -1;
+    }
+    if (!isfinite(cfg->coupling)) return -1;
+
     double coupling = cfg->coupling;
+    size_t n = (size_t)nnodes;
+    if (n > (size_t)-1 / n / sizeof(double)) return -1;
     
     /* Construct coupling matrix C */
-    double *C = (double *)calloc(nnodes * nnodes, sizeof(double));
+    double *C = (double *)calloc(n * n, sizeof(double));
     if (!C) return -1;
     
     for (int i = 0; i < nnodes; ++i) {
@@ -555,7 +638,7 @@ int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zona
     }
     
     /* Solve conjugate wavefront: v = -C^-1 * target_phase  => C * v = -target_phase */
-    double *rhs = (double *)malloc(nnodes * sizeof(double));
+    double *rhs = (double *)malloc(n * sizeof(double));
     if (!rhs) {
         free(C);
         return -2;
@@ -578,6 +661,28 @@ int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zona
     free(C);
     free(rhs);
     return 0;
+}
+
+int rippra_dm_map_ex_impl(const double *target_phase, int nnodes,
+                          const rippra_zonal_mesh *mesh, const rippa_config *cfg,
+                          double *dm_commands, int *out_status)
+{
+    if (out_status) *out_status = RIPPRA_DM_ERROR;
+    if (dm_commands && nnodes > 0) rippra_dm_park_impl(dm_commands, nnodes);
+    if (rippra_dm_map_raw_impl(target_phase, nnodes, mesh, cfg, dm_commands) != 0)
+        return -1;
+
+    if (rippra_dm_saturate_impl(dm_commands, nnodes, cfg, out_status) < 0)
+        return -1;
+    return 0;
+}
+
+int rippra_dm_map_impl(const double *target_phase, int nnodes,
+                       const rippra_zonal_mesh *mesh, const rippa_config *cfg,
+                       double *dm_commands)
+{
+    return rippra_dm_map_ex_impl(target_phase, nnodes, mesh, cfg,
+                                 dm_commands, NULL);
 }
 
 /* ---- Closed-Loop DM Control ------------------------------------------------- */
@@ -635,7 +740,7 @@ int rippra_closed_loop_step_impl(const double *measured_phase, int nnodes,
     if (!delta_v) return -1;
     
     /* delta_v = -C^-1 * measured_phase */
-    int ret = rippra_dm_map_impl(measured_phase, nnodes, mesh, cfg, delta_v);
+    int ret = rippra_dm_map_raw_impl(measured_phase, nnodes, mesh, cfg, delta_v);
     if (ret != 0) {
         free(delta_v);
         return -2;
@@ -644,6 +749,10 @@ int rippra_closed_loop_step_impl(const double *measured_phase, int nnodes,
     /* Accumulate commands with gain */
     for (int i = 0; i < nnodes; ++i) {
         dm_commands[i] += gain * delta_v[i];
+    }
+    if (rippra_dm_saturate_impl(dm_commands, nnodes, cfg, NULL) < 0) {
+        free(delta_v);
+        return -5;
     }
     
     /* Compute residual: residual = measured_phase + C * dm_commands
@@ -684,6 +793,14 @@ int rippra_closed_loop_run_impl(const double *initial_phase, int nnodes,
          2. Controller: delta_v = -gain * C^-1 * residual
          3. dm_commands += delta_v
        dm_commands is [in/out]. Returns 0=converged, 1=max_iter, negative=error. */
+
+    if (!initial_phase || nnodes <= 0 || !mesh || !cfg || !dm_commands ||
+        mesh->nnodes != nnodes || !mesh->node_u || !mesh->node_v || max_iter < 0)
+        return -1;
+
+    /* Sanitize caller-provided state before any early-convergence return. */
+    if (rippra_dm_saturate_impl(dm_commands, nnodes, cfg, NULL) < 0)
+        return -4;
     
     for (int iter = 0; iter < max_iter; ++iter) {
         /* Compute current residual (what WFS would measure) */
@@ -707,12 +824,17 @@ int rippra_closed_loop_run_impl(const double *initial_phase, int nnodes,
         /* Compute DM update from residual */
         double *delta_v = (double *)malloc(nnodes * sizeof(double));
         if (!delta_v) { free(residual); return -2; }
-        int ret = rippra_dm_map_impl(residual, nnodes, mesh, cfg, delta_v);
+        int ret = rippra_dm_map_raw_impl(residual, nnodes, mesh, cfg, delta_v);
         if (ret != 0) { free(residual); free(delta_v); return -3; }
         
         /* Accumulate with gain */
         for (int i = 0; i < nnodes; ++i) {
             dm_commands[i] += gain * delta_v[i];
+        }
+        if (rippra_dm_saturate_impl(dm_commands, nnodes, cfg, NULL) < 0) {
+            free(residual);
+            free(delta_v);
+            return -4;
         }
         
         free(residual);

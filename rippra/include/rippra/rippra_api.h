@@ -48,6 +48,8 @@ typedef struct rippra_api_config {
     int    dm_nact_x;
     int    dm_nact_y;
     double coupling;
+    double dm_max_stroke;     /* +/- actuator command bound (0 = disabled) */
+    double dm_park_threshold; /* fraction of saturated actuators that triggers park, 0..1 */
 } rippra_api_config;
 
 RIPRA_API rippra_api_config rippra_default_config(void);
@@ -109,12 +111,29 @@ RIPRA_API double rippra_compute_tau0(const double *dx_series,
                                       int nframes, int nspots,
                                       double frame_rate);
 
-/* ---- DM Mapping -------------------------------------------------------- */
+/* ---- DM Safety & Mapping ----------------------------------------------- */
+#define RIPPRA_DM_OK        0   /* all strokes within bounds */
+#define RIPPRA_DM_SATURATED 1   /* some actuators clamped */
+#define RIPPRA_DM_PARKED    2   /* park triggered: commands zeroed */
+#define RIPPRA_DM_ERROR    (-1) /* invalid input or safety configuration */
+
+RIPRA_API int rippra_dm_park(double *dm_commands, int nnodes);
+RIPRA_API int rippra_dm_saturate(double *dm_commands, int nnodes,
+                                const rippra_api_config *cfg, int *out_status);
+
 RIPRA_API int rippra_dm_map(const double *target_phase,
                               int nnodes,
                               void *cal,
                               const rippra_api_config *cfg,
                               double *out_commands);
+
+/* Extended map API that reports whether commands were saturated or parked. */
+RIPRA_API int rippra_dm_map_ex(const double *target_phase,
+                                 int nnodes,
+                                 void *cal,
+                                 const rippra_api_config *cfg,
+                                 double *out_commands,
+                                 int *out_status);
 
 /* ---- Closed-Loop AO Control -------------------------------------------- */
 RIPRA_API int rippra_dm_apply(const double *dm_commands,

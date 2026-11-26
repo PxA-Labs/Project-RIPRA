@@ -61,9 +61,20 @@ double rippra_compute_r0_impl(const double *dx_series, const double *dy_series, 
 double rippra_compute_tau0_impl(const double *dx_series, const double *dy_series, int nframes, int nspots, double frame_rate);
 
 /*
- * DM Command Map (coupling matrix inversion)
+ * DM Safety & Command Map (coupling matrix inversion)
  * target_phase is of size nnodes. dm_commands is of size nnodes.
  */
+#ifndef RIPPRA_DM_OK
+#define RIPPRA_DM_OK        0   /* all strokes within bounds */
+#define RIPPRA_DM_SATURATED 1   /* some actuators clamped */
+#define RIPPRA_DM_PARKED    2   /* park triggered: commands zeroed */
+#define RIPPRA_DM_ERROR    (-1) /* invalid input or safety configuration */
+#endif
+
+int rippra_dm_park_impl(double *dm_commands, int nnodes);
+int rippra_dm_saturate_impl(double *dm_commands, int nnodes, const rippa_config *cfg, int *out_status);
+int rippra_dm_map_raw_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
+int rippra_dm_map_ex_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands, int *out_status);
 int rippra_dm_map_impl(const double *target_phase, int nnodes, const rippra_zonal_mesh *mesh, const rippa_config *cfg, double *dm_commands);
 int rippra_dm_apply_impl(const double *dm_commands, int nnodes,
                           const rippra_zonal_mesh *mesh,
