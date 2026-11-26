@@ -12,10 +12,12 @@ C test programs for all pipeline stages.
 | `test_recon.c` | Zonal/modal reconstruction, turbulence, DM mapping |
 | `test_full_pipeline.c` | End-to-end: config → load → calibrate → centroid → zonal → modal → turbulence → DM |
 | `test_stream.c` | Real-time streaming pipeline (ping-pong, ring buffer) |
+| `test_quality.c` | Frame-quality score, routing, fallback, and LOST DM safety |
 | `test_cuda.c` | CUDA kernel verification |
 | `test_minimal.c` | Smoke test for library compilation |
 | `benchmark_centroid.c` | Centroiding timing benchmarks |
 | `benchmark_openmp.c` | OpenMP vs single-thread comparison |
+| `benchmark_quality.c` | Frame-quality reduction and centroid-plus-quality latency |
 
 ## Key Tests
 
@@ -38,7 +40,8 @@ Tests: zonal setup, zonal recon, modal setup, modal recon, r₀, τ₀, DM map, 
 build_test_stream.bat
 run_test_stream.bat
 ```
-Tests: create/destroy stream, frame enqueue/dequeue, 500-frame throughput.
+Tests: create/destroy stream, frame enqueue/dequeue, quality result fields,
+and zero-output handling for lost frames.
 
 ## Data Dependencies
 

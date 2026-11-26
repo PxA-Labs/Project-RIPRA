@@ -32,3 +32,7 @@ dm:
   coupling: 0.15              # [PS9] Matches system.conf
 
 wavelength: 500e-9            # [PLACEHOLDER] system.conf uses 632.8e-9 m (HeNe)
+
+quality_gate:
+  soft: 0.60                  # [PS9] nominal/degraded boundary
+  hard: 0.30                  # [PS9] degraded/lost boundary

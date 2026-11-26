@@ -37,6 +37,42 @@ static void default_config(rippa_config *cfg)
     cfg->dm_nact_x          = 12;
     cfg->dm_nact_y          = 12;
     cfg->coupling           = 0.15;
+    cfg->quality_soft       = 0.60;
+    cfg->quality_hard       = 0.30;
+    cfg->bg_mean            = 0.0;
+    cfg->bg_sigma           = 0.0;
+}
+
+int rippa_config_validate(const rippa_config *cfg)
+{
+    if (!cfg) return -1;
+
+    if (!isfinite(cfg->quality_soft) || !isfinite(cfg->quality_hard) ||
+        cfg->quality_hard < 0.0 || cfg->quality_hard >= 1.0 ||
+        cfg->quality_soft <= 0.0 || cfg->quality_soft > 1.0 ||
+        cfg->quality_hard >= cfg->quality_soft) {
+        return -2;
+    }
+
+    if (cfg->frame_width <= 0 || cfg->frame_height <= 0 ||
+        cfg->totlenses <= 0 || cfg->coarse_grid_radius <= 0 ||
+        cfg->zernike_nmax < 1 || cfg->dm_nact_x <= 0 ||
+        cfg->dm_nact_y <= 0 || !isfinite(cfg->camera_pixsize) ||
+        !isfinite(cfg->flength) || !isfinite(cfg->pitch) ||
+        !isfinite(cfg->sa_radius) || !isfinite(cfg->pupil_radius) ||
+        !isfinite(cfg->wavelength) || cfg->camera_pixsize <= 0.0 ||
+        cfg->flength <= 0.0 || cfg->pitch <= 0.0 || cfg->sa_radius <= 0.0 ||
+        cfg->pupil_radius <= 0.0 || cfg->wavelength <= 0.0 ||
+        !isfinite(cfg->bg_mean) || !isfinite(cfg->bg_sigma) ||
+        cfg->bg_sigma < 0.0 ||
+        !isfinite(cfg->thresh_binary) || cfg->thresh_binary < 0.0 ||
+        cfg->thresh_binary > 1.0 || !isfinite(cfg->centroid_percent) ||
+        cfg->centroid_percent < 0.0 || cfg->centroid_percent > 1.0 ||
+        !isfinite(cfg->coupling)) {
+        return -3;
+    }
+
+    return 0;
 }
 
 /* ---- config ------------------------------------------------------------ */
@@ -46,10 +82,11 @@ int rippa_config_load(rippa_config *cfg, const char *path)
     FILE *fp;
     char line[512];
 
+    if (!cfg) return -1;
     default_config(cfg);
 
     fp = fopen(path, "r");
-    if (!fp) return 0; /* missing file -> use defaults, not an error */
+    if (!fp) return rippa_config_validate(cfg); /* defaults remain usable */
 
     while (fgets(line, sizeof(line), fp)) {
         char *s = strip(line);
@@ -71,6 +108,10 @@ int rippa_config_load(rippa_config *cfg, const char *path)
         else if (!strcmp(key, "wavelength"))        cfg->wavelength = atof(val);
         else if (!strcmp(key, "thresh_binary"))     cfg->thresh_binary = atof(val);
         else if (!strcmp(key, "centroid_percent"))  cfg->centroid_percent = atof(val);
+        else if (!strcmp(key, "quality_soft")) cfg->quality_soft = atof(val);
+        else if (!strcmp(key, "quality_hard")) cfg->quality_hard = atof(val);
+        else if (!strcmp(key, "bg_mean")) cfg->bg_mean = atof(val);
+        else if (!strcmp(key, "bg_sigma")) cfg->bg_sigma = atof(val);
         else if (!strcmp(key, "coarse_grid_radius"))cfg->coarse_grid_radius = atoi(val);
         else if (!strcmp(key, "zernike_nmax"))      cfg->zernike_nmax = atoi(val);
         else if (!strcmp(key, "dm_nact_x"))         cfg->dm_nact_x = atoi(val);
@@ -78,7 +119,7 @@ int rippa_config_load(rippa_config *cfg, const char *path)
         else if (!strcmp(key, "coupling"))          cfg->coupling = atof(val);
     }
     fclose(fp);
-    return 0;
+    return rippa_config_validate(cfg);
 }
 
 /* ---- raw loader -------------------------------------------------------- */

@@ -23,6 +23,12 @@ static int cpuid_has_avx(void)
     int ecx = cpuInfo[2];
     return (ecx >> 28) & 1; /* ECX bit 28 = AVX */
 }
+static int cpuid_has_fma(void)
+{
+    int cpuInfo[4] = {0};
+    __cpuid(cpuInfo, 1);
+    return (cpuInfo[2] >> 12) & 1; /* ECX bit 12 = FMA */
+}
 static int cpuid_osxsave(void)
 {
     int cpuInfo[4] = {0};
@@ -34,7 +40,8 @@ static int xgetbv_ymm(void)
     unsigned long long xcr0 = _xgetbv(0);
     return (xcr0 & 6) == 6; /* XMM + YMM state */
 }
-#elif defined(__GNUC__) || defined(__clang__)
+#elif (defined(__GNUC__) || defined(__clang__)) && \
+      (defined(__x86_64__) || defined(__i386__))
 #include <cpuid.h>
 static int cpuid_has_avx2(void)
 {
@@ -48,6 +55,13 @@ static int cpuid_has_avx(void)
     unsigned int eax, ebx, ecx = 0, edx;
     if (__get_cpuid(1, &eax, &ebx, &ecx, &edx))
         return (ecx >> 28) & 1;
+    return 0;
+}
+static int cpuid_has_fma(void)
+{
+    unsigned int eax, ebx, ecx = 0, edx;
+    if (__get_cpuid(1, &eax, &ebx, &ecx, &edx))
+        return (ecx >> 12) & 1;
     return 0;
 }
 static int cpuid_osxsave(void)
@@ -66,6 +80,7 @@ static int xgetbv_ymm(void)
 #else
 static int cpuid_has_avx2(void) { return 0; }
 static int cpuid_has_avx(void)  { return 0; }
+static int cpuid_has_fma(void)  { return 0; }
 static int cpuid_osxsave(void)    { return 0; }
 static int xgetbv_ymm(void)       { return 0; }
 #endif
@@ -78,10 +93,13 @@ rippra_simd_level rippra_simd_detect(void)
        kernel can be debugged; scalar fallback is used. */
     return RIPPRA_SIMD_SSE;
 #else
+ #if !defined(__x86_64__) && !defined(__i386__)
+    return RIPPRA_SIMD_NONE;
+ #endif
     if (!cpuid_has_avx())     return RIPPRA_SIMD_SSE;
     if (!cpuid_osxsave())     return RIPPRA_SIMD_SSE;
     if (!xgetbv_ymm())        return RIPPRA_SIMD_SSE;
-    if (cpuid_has_avx2())     return RIPPRA_SIMD_AVX2;
+    if (cpuid_has_avx2() && cpuid_has_fma()) return RIPPRA_SIMD_AVX2;
     return RIPPRA_SIMD_AVX;
 #endif
 }
@@ -146,8 +164,9 @@ static void tcog_window_fast_scalar(const double *frame, int w,
     *out_mass = m;
 }
 
-/* ---- AVX2 implementation (defined in simd_avx2.c; not available on MSVC) ---- */
-#ifndef _MSC_VER
+/* ---- AVX2 implementation (available only on x86 builds) ---- */
+#if !defined(_MSC_VER) && !defined(__MINGW32__) && !defined(__MINGW64__) && \
+    (defined(__x86_64__) || defined(__i386__))
 extern void tcog_window_fast_avx2(const double *frame, int w,
                                    int col_min, int col_max,
                                    int row_min, int row_max,
@@ -175,12 +194,15 @@ void rippra_simd_tcog_window_fast(const double *frame, int w,
             cached_level = (int)rippra_simd_detect();
         level = (rippra_simd_level)cached_level;
     }
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(__MINGW32__) && !defined(__MINGW64__) && \
+    (defined(__x86_64__) || defined(__i386__))
     if (level >= RIPPRA_SIMD_AVX2) {
         tcog_window_fast_avx2(frame, w, col_min, col_max, row_min, row_max,
                               centroid_percent, out_cx, out_cy, out_mass);
         return;
     }
+#else
+    (void)level;
 #endif
     tcog_window_fast_scalar(frame, w, col_min, col_max, row_min, row_max,
                             centroid_percent, out_cx, out_cy, out_mass);

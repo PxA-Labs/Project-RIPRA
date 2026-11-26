@@ -14,6 +14,7 @@
 
 static void api_cfg_to_internal(const rippra_api_config *src, rippa_config *dst)
 {
+    memset(dst, 0, sizeof(*dst));
     dst->camera_pixsize    = src->camera_pixsize;
     dst->frame_width       = src->frame_width;
     dst->frame_height      = src->frame_height;
@@ -25,6 +26,10 @@ static void api_cfg_to_internal(const rippra_api_config *src, rippa_config *dst)
     dst->wavelength        = src->wavelength;
     dst->thresh_binary     = src->thresh_binary;
     dst->centroid_percent  = src->centroid_percent;
+    /* The legacy public config layout predates the quality gate.  Preserve
+     * its ABI and use the documented defaults for those internal fields. */
+    dst->quality_soft      = 0.60;
+    dst->quality_hard      = 0.30;
     dst->coarse_grid_radius= src->coarse_grid_radius;
     dst->zernike_nmax      = src->zernike_nmax;
     dst->dm_nact_x         = src->dm_nact_x;

@@ -98,6 +98,9 @@ int main(void)
     rippra_modal_model mmodel;
     double *dx = NULL, *dy = NULL, *phase = NULL, *coeffs = NULL;
     double *dm_cmds = NULL;
+    double *spot_mass = NULL;
+    int *spot_mask = NULL;
+    rippra_spot_metrics *spot_metrics = NULL;
     int ret, nspots, nmodes, i;
 
     printf("=== RIPRA Full Pipeline Integration Test ===\n\n");
@@ -112,7 +115,9 @@ int main(void)
 
     /* ---- Step 0b: BMP config validation ---- */
     {
-        const char *bmp_test = "build/test_mismatch.bmp";
+        /* Keep the generated fixture relative to the test working directory
+         * so the same test runs on POSIX and Windows. */
+        const char *bmp_test = "rippra_test_mismatch.bmp";
         double *bmp_data = NULL;
 
         if (write_test_bmp(bmp_test, 2, 2) == 0) {
@@ -135,8 +140,8 @@ int main(void)
     /* ---- Step 1: Load frames ---- */
     ret = rippa_load_raw("data_raw/sh_flat.raw", cfg.frame_width, cfg.frame_height, &flat_frame);
     if (ret != 0) {
-        printf("  SKIP: data_raw/sh_flat.raw not found (real HW data required)\n");
-        return 0;
+        fprintf(stderr, "ERROR: data_raw/sh_flat.raw not found\n");
+        return 1;
     }
     TEST(ret == 0, "Load flat frame");
 
@@ -162,6 +167,14 @@ int main(void)
     nspots = cal.nspots;
     TEST(nspots > 0, "Spots detected");
     TEST(nspots <= cfg.totlenses, "nspots <= totlenses");
+    {
+        rippra_quality_ref quality_ref;
+        TEST(rippra_quality_calibrate(flat_frame, cfg.frame_width,
+                                      cfg.frame_height, &cal, &cfg,
+                                      &quality_ref) == 0 &&
+             quality_ref.ref_mass != NULL,
+             "Quality calibration references available");
+    }
     printf("  Detected %d sub-apertures\n", nspots);
 
     int cx_ok = 1, cy_ok = 1;
@@ -175,12 +188,22 @@ int main(void)
     /* ---- Step 3: Compute centroids on aberrated frame ---- */
     dx = (double*)malloc(nspots * sizeof(double));
     dy = (double*)malloc(nspots * sizeof(double));
+    spot_mass = (double*)malloc(nspots * sizeof(double));
+    spot_mask = (int*)malloc(nspots * sizeof(int));
+    spot_metrics = (rippra_spot_metrics*)calloc(nspots, sizeof(rippra_spot_metrics));
     double *tmp_cx = (double*)malloc(nspots * sizeof(double));
     double *tmp_cy = (double*)malloc(nspots * sizeof(double));
-    ret = rippa_compute_centroids(img_frame, cfg.frame_width, cfg.frame_height, &cal, &cfg, tmp_cx, tmp_cy);
+    ret = rippa_compute_centroids_with_metrics(
+        img_frame, cfg.frame_width, cfg.frame_height, &cal, &cfg,
+        tmp_cx, tmp_cy, spot_metrics);
     TEST(ret == 0, "Centroid computation");
     if (ret == 0) {
-        rippa_compute_deltas(tmp_cx, tmp_cy, &cal, nspots, dx, dy, NULL);
+        for (i = 0; i < nspots; ++i) spot_mass[i] = spot_metrics[i].mass;
+        rippa_compute_deltas(tmp_cx, tmp_cy, &cal, nspots, dx, dy, spot_mask);
+        double quality = rippra_frame_quality_with_metrics(
+            dx, dy, spot_mass, spot_mask, spot_metrics, nspots, &cfg, &cal, NULL);
+        TEST(isfinite(quality) && quality >= 0.0 && quality <= 1.0,
+             "Frame quality is bounded");
         int deltas_ok = 1;
         for (i = 0; i < nspots; i++)
             if (!isfinite(dx[i]) || !isfinite(dy[i])) deltas_ok = 0;
@@ -364,6 +387,7 @@ int main(void)
 
 cleanup:
     free(flat_frame); free(img_frame); free(dx); free(dy);
+    free(spot_mass); free(spot_mask); free(spot_metrics);
     free(phase); free(coeffs); free(dm_cmds);
     rippa_calibration_free(&cal);
     rippra_zonal_free(&zmesh);
