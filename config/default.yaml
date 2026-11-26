@@ -30,5 +30,7 @@ dm:
   n_actuators: 21             # [PLACEHOLDER] system.conf uses 12×12 = 144
   actuator_pitch: 0.5e-3      # [PLACEHOLDER] not in system.conf; adjust per DM datasheet
   coupling: 0.15              # [PS9] Matches system.conf
+  max_stroke: 0.0             # [PS9] ± actuator command limit (0 = disabled)
+  park_threshold: 0.30        # [PS9] Fraction of saturated actuators triggering park (0..1)
 
 wavelength: 500e-9            # [PLACEHOLDER] system.conf uses 632.8e-9 m (HeNe)

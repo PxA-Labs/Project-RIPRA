@@ -30,6 +30,8 @@ static void api_cfg_to_internal(const rippra_api_config *src, rippa_config *dst)
     dst->dm_nact_x         = src->dm_nact_x;
     dst->dm_nact_y         = src->dm_nact_y;
     dst->coupling          = src->coupling;
+    dst->dm_max_stroke     = src->dm_max_stroke;
+    dst->dm_park_threshold = src->dm_park_threshold;
 }
 
 RIPRA_API const char* rippra_version(void) { return RIPRA_VERSION; }
@@ -53,6 +55,8 @@ RIPRA_API rippra_api_config rippra_default_config(void)
     c.dm_nact_x          = 12;
     c.dm_nact_y          = 12;
     c.coupling           = 0.15;
+    c.dm_max_stroke      = 0.0;
+    c.dm_park_threshold  = 0.30;
     return c;
 }
 
@@ -77,6 +81,8 @@ RIPRA_API int rippra_config_load(rippra_api_config *cfg, const char *path)
     cfg->dm_nact_x          = internal.dm_nact_x;
     cfg->dm_nact_y          = internal.dm_nact_y;
     cfg->coupling           = internal.coupling;
+    cfg->dm_max_stroke      = internal.dm_max_stroke;
+    cfg->dm_park_threshold  = internal.dm_park_threshold;
     return 0;
 }
 
@@ -332,6 +338,11 @@ RIPRA_API int rippra_dm_map(const double *target_phase, int nnodes,
         cal->zmesh_ready = 1;
     }
     return rippra_dm_map_impl(target_phase, nnodes, &cal->zmesh, &cal->cfg, out_commands);
+}
+
+RIPRA_API int rippra_dm_park(double *dm_commands, int nnodes)
+{
+    return rippra_dm_park_impl(dm_commands, nnodes);
 }
 
 /* ---- Closed-Loop AO Control -------------------------------------------- */

@@ -395,6 +395,7 @@ int rippra_stream_process(rippra_stream *s)
 
     /* Step 6: DM command map */
     rippra_dm_map_impl(r->W, s->mesh.nnodes, &s->mesh, &s->cfg, r->dm_commands);
+    r->dm_status = rippra_dm_saturate(r->dm_commands, s->mesh.nnodes, &s->cfg);
 
     /* Mark ring entry as processed */
     e->occupied = 0;

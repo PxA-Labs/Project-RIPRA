@@ -94,6 +94,26 @@ double rippra_wavefront_rms_lambda(const double *phase, int nnodes, const rippa_
  */
 double rippra_compute_strehl(const double *phase_rad, int nnodes);
 
+/*
+ * DM safety status codes
+ */
+#define RIPPRA_DM_OK        0   /* all strokes within bounds */
+#define RIPPRA_DM_SATURATED 1   /* some actuators clamped */
+#define RIPPRA_DM_PARKED    2   /* park triggered: commands zeroed */
+
+/*
+ * Clamp actuator strokes to ±dm_max_stroke.
+ * Returns RIPPRA_DM_OK, RIPPRA_DM_SATURATED, or RIPPRA_DM_PARKED.
+ * If fraction of saturated actuators > cfg->dm_park_threshold, zeroes commands (park).
+ */
+int rippra_dm_saturate(double *dm_commands, int nnodes, const rippa_config *cfg);
+
+/*
+ * Zero out all DM commands (park mirror).
+ */
+int rippra_dm_park_impl(double *dm_commands, int nnodes);
+#define rippra_dm_park rippra_dm_park_impl
+
 #ifdef __cplusplus
 }
 #endif
