@@ -45,7 +45,7 @@ static const char *pick_path(const char *from_rippra, const char *from_root,
 
 static void occlude_spots(double *frame, int width, int height,
                           const rippra_calibration *cal,
-                          int first, int count)
+                          int first, int count, double bg_level)
 {
     int end = first + count;
     if (end > cal->nspots) end = cal->nspots;
@@ -54,7 +54,7 @@ static void occlude_spots(double *frame, int width, int height,
         for (int row = spot->row_min; row <= spot->row_max; ++row) {
             for (int col = spot->col_min; col <= spot->col_max; ++col) {
                 if (row >= 0 && row < height && col >= 0 && col < width)
-                    frame[row * width + col] = 0.0;
+                    frame[row * width + col] = bg_level;
             }
         }
     }
@@ -95,7 +95,7 @@ int main(void)
     rippra_modal_model model = {0};
     rippra_stream *stream = NULL;
     double *flat = NULL, *attenuated = NULL, *attenuated_mid = NULL;
-    double *partial = NULL, *severe = NULL;
+    double *partial = NULL, *severe = NULL, *blocked_beam = NULL;
     double *quality_dx = NULL, *quality_dy = NULL, *quality_mass = NULL;
     int *quality_mask = NULL;
     int rc;
@@ -181,14 +181,23 @@ int main(void)
     attenuated_mid = (double *)malloc(npix * sizeof(double));
     partial = (double *)malloc(npix * sizeof(double));
     severe = (double *)malloc(npix * sizeof(double));
-    CHECK(attenuated && attenuated_mid && partial && severe,
+    blocked_beam = (double *)malloc(npix * sizeof(double));
+    CHECK(attenuated && attenuated_mid && partial && severe && blocked_beam,
           "quality test frames allocate");
     for (size_t i = 0; i < npix; ++i) attenuated[i] = 0.01 * flat[i];
     for (size_t i = 0; i < npix; ++i) attenuated_mid[i] = 0.20 * flat[i];
+    /* Use background-level occlusion (bg_level ~ 20/600 = 0.033) instead of
+     * exact 0.0.  Real sensors never produce exactly zero; the gate must
+     * detect occlusion by background-level pixels.  (PR #105 review item 1) */
+    double bg_level = 20.0 / 600.0;
     memcpy(partial, flat, npix * sizeof(double));
     memcpy(severe, flat, npix * sizeof(double));
-    occlude_spots(partial, width, height, &cal, 0, cal.nspots / 2);
-    occlude_spots(severe, width, height, &cal, 0, (cal.nspots * 9) / 10);
+    occlude_spots(partial, width, height, &cal, 0, cal.nspots / 2, bg_level);
+    occlude_spots(severe, width, height, &cal, 0, (cal.nspots * 9) / 10, bg_level);
+    /* Fully blocked beam: entire frame at background level + small noise */
+    for (size_t i = 0; i < npix; ++i) {
+        blocked_beam[i] = bg_level + 0.001 * ((double)(i % 7) - 3.0);
+    }
 
     const rippra_stream_result *clean =
         rippra_stream_process_one(stream, flat, width, height);
@@ -213,11 +222,26 @@ int main(void)
     CHECK(attenuated_result != NULL && isfinite(attenuated_result->quality) &&
           attenuated_result->quality >= 0.0 && attenuated_result->quality <= 1.0,
           "attenuated quality is bounded");
+    /* 1% flux must be detected as degraded or lost, never nominal.
+     * (PR #105 review blocking item 1: blocked/attenuated beams must
+     * not pass the quality gate.) */
+    CHECK(attenuated_result->status != RIPPRA_FRAME_NOMINAL,
+          "1% flux is not classified as nominal");
     printf("INFO: clean quality=%.4f attenuated quality=%.4f status=%d\n",
            clean_quality, attenuated_result->quality, attenuated_result->status);
     CHECK(clean_quality > attenuated_mid_result->quality &&
           attenuated_mid_result->quality > attenuated_result->quality,
           "quality decreases monotonically as attenuation increases");
+
+    /* Fully blocked beam with background noise must NOT be NOMINAL */
+    const rippra_stream_result *blocked_result =
+        rippra_stream_process_one(stream, blocked_beam, width, height);
+    CHECK(blocked_result != NULL && isfinite(blocked_result->quality),
+          "blocked beam produces a quality result");
+    CHECK(blocked_result->status != RIPPRA_FRAME_NOMINAL,
+          "fully blocked beam is not classified as nominal");
+    printf("INFO: blocked beam quality=%.4f status=%d\n",
+           blocked_result->quality, blocked_result->status);
 
     int fallback_calls = 0;
     CHECK(rippra_stream_set_fallback(stream, fallback_callback,
@@ -264,6 +288,49 @@ int main(void)
           all_zero(blank_result->dm_commands, blank_result->nnodes),
           "blank frame is safely lost with no stale DM commands");
 
+    /* 5% flux must not be classified as nominal. */
+    for (size_t i = 0; i < npix; ++i) attenuated[i] = 0.05 * flat[i];
+    const rippra_stream_result *flux5_result =
+        rippra_stream_process_one(stream, attenuated, width, height);
+    CHECK(flux5_result != NULL && flux5_result->status != RIPPRA_FRAME_NOMINAL,
+          "5% flux is not classified as nominal");
+
+    /* NOMINAL frames with partial spot loss must still interpolate invalid
+     * spots before reconstruction (PR #105 review blocking item 2).
+     * Construct a +2 px X-shifted frame and compare its tip/tilt Zernike
+     * coefficient with and without 20% background-level occlusion. */
+    {
+        double *tilted = (double *)malloc(npix * sizeof(double));
+        double *tilted_occ = (double *)malloc(npix * sizeof(double));
+        CHECK(tilted && tilted_occ, "tilted test frames allocate");
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                int src_col = col - 2;
+                double v = (src_col >= 0 && src_col < width)
+                    ? flat[row * width + src_col] : bg_level;
+                tilted[row * width + col] = v;
+            }
+        }
+        memcpy(tilted_occ, tilted, npix * sizeof(double));
+        occlude_spots(tilted_occ, width, height, &cal, 0, cal.nspots / 5,
+                      bg_level);
+
+        const rippra_stream_result *ref_tilt =
+            rippra_stream_process_one(stream, tilted, width, height);
+        CHECK(ref_tilt != NULL && ref_tilt->status == RIPPRA_FRAME_NOMINAL,
+              "unoccluded tilted frame is nominal");
+        double ref_z0 = ref_tilt->zernike_coeffs[0];
+
+        const rippra_stream_result *occ_tilt =
+            rippra_stream_process_one(stream, tilted_occ, width, height);
+        CHECK(occ_tilt != NULL && occ_tilt->status == RIPPRA_FRAME_NOMINAL,
+              "20%-occluded tilted frame is nominal");
+        CHECK(fabs(occ_tilt->zernike_coeffs[0] - ref_z0) < 0.05 * fabs(ref_z0) + 1e-6,
+              "nominal frame interpolates invalid spots without tilt loss");
+        free(tilted);
+        free(tilted_occ);
+    }
+
     /* The gate is designed for a short deterministic processing path, but
      * timing is reported rather than asserted because CI hosts vary. */
     {
@@ -288,7 +355,7 @@ int main(void)
     rippra_zonal_free(&mesh);
     rippa_calibration_free(&cal);
     free(flat); free(attenuated); free(attenuated_mid);
-    free(partial); free(severe);
+    free(partial); free(severe); free(blocked_beam);
     free(quality_dx); free(quality_dy); free(quality_mass); free(quality_mask);
     printf("Frame-quality gate tests complete.\n");
     return 0;

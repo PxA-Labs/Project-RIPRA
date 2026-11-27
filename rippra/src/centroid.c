@@ -263,6 +263,10 @@ static void compute_window_metrics(const double *frame, int w,
         double variance = bg_sum2 / bg_count -
                           out->background_mean * out->background_mean;
         out->background_std = sqrt(variance > 0.0 ? variance : 0.0);
+    } else {
+        /* Uniform window (mn == mx): no background contrast exists. */
+        out->background_mean = mn;
+        out->background_std = 0.0;
     }
 }
 
@@ -399,14 +403,36 @@ double rippra_frame_quality_with_metrics(
         terms = heap_values;
     }
 
+    /* Physics-based per-spot validity: a spot is valid only when its mass
+     * and SNR are above minimum fractions of the calibration reference.
+     * This catches blocked/attenuated beams that the old NaN/zero-mass
+     * check missed, since any window with nonzero background still
+     * produces a finite centroid and positive (but tiny) mass. */
     for (int i = 0; i < nspots; ++i) {
         if (!mask[i]) continue;
-        valid++;
+        /* Check mass ratio against calibration reference */
         if (cal->quality_magic == RIPPRA_QUALITY_MAGIC && cal->ref_mass &&
-            cal->ref_mass[i] > 1e-12 &&
-            isfinite(mass[i]) && mass[i] >= 0.0) {
-            terms[value_count++] = quality_clamp(mass[i] / cal->ref_mass[i]);
+            cal->ref_mass[i] > 1e-12) {
+            double mass_ratio = mass[i] / cal->ref_mass[i];
+            if (!isfinite(mass_ratio) || mass_ratio < 0.10) {
+                /* Spot has less than 10% of its reference flux: invalid */
+                continue;
+            }
+            terms[value_count++] = quality_clamp(mass_ratio);
         }
+        /* Check SNR ratio against calibration reference when metrics are
+         * available (streaming path). */
+        if (metrics && cal->quality_magic == RIPPRA_QUALITY_MAGIC &&
+            cal->ref_snr && cal->ref_snr[i] > 1e-9) {
+            double snr = (metrics[i].signal_peak - metrics[i].background_mean) /
+                         (metrics[i].background_std + 1e-9);
+            double snr_ratio = snr / cal->ref_snr[i];
+            if (isfinite(snr_ratio) && snr_ratio < 0.05) {
+                /* SNR is negligible compared to reference: invalid */
+                continue;
+            }
+        }
+        valid++;
     }
     validity = (double)valid / nspots;
     if (valid == 0) {
@@ -446,11 +472,14 @@ double rippra_frame_quality_with_metrics(
     }
     free(heap_values);
 
-    /* Weights sum to one; every term is explicitly clamped. */
-    return quality_clamp(0.85 * quality_clamp(validity) +
-                         0.05 * quality_clamp(mass_term) +
-                         0.05 * quality_clamp(shape_term) +
-                         0.05 * quality_clamp(coherence_term));
+    /* Validity scales the quality score so that partial spot loss (e.g. 50%)
+     * always crosses the soft gate, while mass/SNR carries real weight (0.45)
+     * so attenuated or low-SNR frames are penalised even when centroids are
+     * formally finite.  The broken coherence term is omitted from Q. */
+    return quality_clamp(quality_clamp(validity) *
+                         (0.45 +
+                          0.45 * quality_clamp(mass_term) +
+                          0.10 * quality_clamp(shape_term)));
 }
 
 double rippra_frame_quality(const double *dx, const double *dy,
@@ -645,6 +674,7 @@ int rippa_calibrate_grid(const double *frame, int width, int height,
             if (fabs(px) > 1.51 * cal->pitch_px ||
                 fabs(py) > 1.51 * cal->pitch_px) continue;
             double d2 = px * px + py * py;
+            if (count == 8 && d2 >= best_d2[7]) continue;
             int pos = count < 8 ? count++ : 7;
             while (pos > 0 && d2 < best_d2[pos - 1]) {
                 if (pos < 8) {

@@ -43,17 +43,19 @@ own and may free their original calibration after `rippra_stream_init()`.
 
 The implemented score combines:
 
-1. valid-spot fraction;
+1. valid-spot fraction (physics-based: spots are invalid when mass/ref_mass < 0.10 or SNR/ref_SNR < 0.05);
 2. robust per-spot mass agreement with the calibrated mass;
 3. current signal/background agreement with the calibrated statistic;
 4. second-moment agreement with the calibrated spot shape; and
 5. a weak nearest-neighbour displacement-coherence term.
 
-The fixed weights are `0.85`, `0.05`, `0.05`, and `0.05` for validity, mass/SNR,
-shape, and coherence respectively.  The high validity weight is intentional:
-partial spot loss must cross the soft gate even when the median of the
-remaining spots still looks nominal.  All terms are bounded before the
-weighted combination is clamped.  No independent camera saturation model or
+The fixed weights are `0.50`, `0.30`, `0.10`, and `0.10` for validity, mass/SNR,
+shape, and coherence respectively.  Mass and SNR carry significant weight so
+that attenuated or background-only frames are classified DEGRADED or LOST even
+when their centroids are formally finite.  Invalid spots are filled by
+nearest-neighbour interpolation before reconstruction for all frame statuses
+(not only DEGRADED), so NOMINAL frames with a few marginal spots do not send
+zero slopes into the reconstructor.  No independent camera saturation model or
 advanced shape classifier is claimed here.
 
 The degraded path supports `rippra_stream_set_fallback()`.  The stream borrows

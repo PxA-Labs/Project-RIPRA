@@ -66,6 +66,7 @@ struct rippra_stream {
     double *dx_history;        /* rolling history for r0/tau0 */
     double *dy_history;
     int     history_filled;
+    int64_t history_count;     /* consecutive valid frames pushed */
 
     /* Processing-thread scratch; avoids per-frame allocation in the quality
      * gate and keeps the normal path deterministic. */
@@ -306,21 +307,25 @@ void rippra_stream_shutdown(rippra_stream *s)
     if (!s) return;
 
     /* Free ring buffers */
-    for (int i = 0; i < s->ring_capacity; ++i) {
-        if (s->ring[i].frame) free(s->ring[i].frame);
+    if (s->ring) {
+        for (int i = 0; i < s->ring_capacity; ++i) {
+            if (s->ring[i].frame) free(s->ring[i].frame);
+        }
     }
 
     /* Free result buffers */
-    for (int i = 0; i < s->results_capacity; ++i) {
-        free(s->results[i].cx);
-        free(s->results[i].cy);
-        free(s->results[i].dx);
-        free(s->results[i].dy);
-        free(s->results[i].spot_mass);
-        free(s->results[i].spot_mask);
-        free(s->results[i].W);
-        free(s->results[i].zernike_coeffs);
-        free(s->results[i].dm_commands);
+    if (s->results) {
+        for (int i = 0; i < s->results_capacity; ++i) {
+            free(s->results[i].cx);
+            free(s->results[i].cy);
+            free(s->results[i].dx);
+            free(s->results[i].dy);
+            free(s->results[i].spot_mass);
+            free(s->results[i].spot_mask);
+            free(s->results[i].W);
+            free(s->results[i].zernike_coeffs);
+            free(s->results[i].dm_commands);
+        }
     }
 
     free(s->ping_buffer);
@@ -507,13 +512,34 @@ int rippra_stream_process(rippra_stream *s)
     }
 
     /* Step 2: retain raw deltas/mask for diagnostics; interpolation is only
-     * applied to the private reconstruction work vectors. */
+     * applied to the private reconstruction work vectors.
+     *
+     * Per-spot validity uses physics-based thresholds: a spot is invalid when
+     * its mass falls below 10% of the calibration reference or its SNR falls
+     * below 5% of the reference.  This catches blocked/attenuated beams that
+     * still produce finite centroids due to nonzero background. */
     rippa_compute_deltas(r->cx, r->cy, &s->cal, nspots, r->dx, r->dy,
                          r->spot_mask);
     for (int i = 0; i < nspots; ++i) {
         r->spot_mass[i] = s->spot_metrics[i].mass;
-        if (!isfinite(s->spot_metrics[i].mass) || s->spot_metrics[i].mass <= 1e-9)
+        if (!isfinite(s->spot_metrics[i].mass) || s->spot_metrics[i].mass <= 1e-9) {
             r->spot_mask[i] = 0;
+        } else if (s->cal.quality_magic == RIPPRA_QUALITY_MAGIC &&
+                   s->cal.ref_mass && s->cal.ref_mass[i] > 1e-12) {
+            double mass_ratio = s->spot_metrics[i].mass / s->cal.ref_mass[i];
+            if (!isfinite(mass_ratio) || mass_ratio < 0.10)
+                r->spot_mask[i] = 0;
+        }
+        /* Also check SNR if reference SNR is available */
+        if (r->spot_mask[i] && s->cal.quality_magic == RIPPRA_QUALITY_MAGIC &&
+            s->cal.ref_snr && s->cal.ref_snr[i] > 1e-9) {
+            double snr = (s->spot_metrics[i].signal_peak -
+                          s->spot_metrics[i].background_mean) /
+                         (s->spot_metrics[i].background_std + 1e-9);
+            double snr_ratio = snr / s->cal.ref_snr[i];
+            if (isfinite(snr_ratio) && snr_ratio < 0.05)
+                r->spot_mask[i] = 0;
+        }
     }
     r->quality = rippra_frame_quality_with_metrics(
         r->dx, r->dy, r->spot_mass, r->spot_mask, s->spot_metrics,
@@ -534,9 +560,18 @@ int rippra_stream_process(rippra_stream *s)
         return 0;
     }
 
-    if (r->status == RIPPRA_FRAME_DEGRADED) {
+    /* Always fill invalid spots before reconstruction, regardless of status.
+     * On main (before the quality gate) every frame went through
+     * stream_interpolate_lost_spots; restricting it to DEGRADED caused
+     * NOMINAL frames with up to ~47% invalid spots to send zero slopes
+     * into reconstruction, degrading the wavefront estimate (PR #105
+     * review blocking item 2).
+     *
+     * DEGRADED frames still prefer the user's fallback callback when one
+     * is installed. */
+    {
         int fallback_ok = 0;
-        if (s->fallback_fn) {
+        if (r->status == RIPPRA_FRAME_DEGRADED && s->fallback_fn) {
             int callback_rc = s->fallback_fn(
                 r->dx, r->dy, r->spot_mask, nspots, s->dx_history,
                 s->fallback_ctx, s->work_dx, s->work_dy);
@@ -553,9 +588,6 @@ int rippra_stream_process(rippra_stream *s)
         if (!fallback_ok)
             stream_interpolate_lost_spots(r->dx, r->dy, r->spot_mask, nspots,
                                           &s->cal, s->work_dx, s->work_dy);
-    } else {
-        memcpy(s->work_dx, r->dx, (size_t)nspots * sizeof(double));
-        memcpy(s->work_dy, r->dy, (size_t)nspots * sizeof(double));
     }
 
     /* Step 3: zonal reconstruction */
@@ -573,8 +605,9 @@ int rippra_stream_process(rippra_stream *s)
     }
 
     /* Step 5: turbulence (rolling window) */
-    if (r->status != RIPPRA_FRAME_LOST) {
-        int idx = (int)((e->frame_id - 1) % s->turb_nframes);
+    if (r->status != RIPPRA_FRAME_LOST && r->status != RIPPRA_STATUS_ERROR) {
+        int idx = (int)(s->history_count % s->turb_nframes);
+        s->history_count++;
         memcpy(&s->dx_history[(size_t)idx * nspots], s->work_dx,
                nspots * sizeof(double));
         memcpy(&s->dy_history[(size_t)idx * nspots], s->work_dy,
@@ -663,6 +696,7 @@ void rippra_stream_set_turbulence_window(rippra_stream *s, int nframes)
         s->dy_history = new_dy;
         s->turb_nframes = nframes;
         s->history_filled = 0;
+        s->history_count = 0;
     } else {
         free(new_dx);
         free(new_dy);
